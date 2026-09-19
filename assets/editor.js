@@ -245,6 +245,7 @@
     const mod = event.ctrlKey || event.metaKey;
 
     if (!state.active && !typingTarget && !mod && !event.altKey && key.toLowerCase() === 'v') {
+      if (document.body && document.body.classList.contains('html-ppt-presenter-active')) return;
       enter();
       event.preventDefault();
       event.stopPropagation();

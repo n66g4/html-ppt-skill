@@ -1,0 +1,28 @@
+{
+  "name": "htmlpptskill",
+  "version": "1.0.0",
+  "description": "> 面向 Agent 的 HTML 演示稿 Skill —— 用静态 HTML/CSS/JS 生成可直接投屏的 slides。 > **37 套主题** · **16 套完整 deck 模板** · **31 种页面布局** · **47 个动效** · **演讲者模式** · **V 键在线编辑**。 > 零构建，浏览器即开即用。",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs",
+    "example": "examples"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/n66g4/html-ppt-skill.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/n66g4/html-ppt-skill/issues"
+  },
+  "homepage": "https://github.com/n66g4/html-ppt-skill#readme",
+  "devDependencies": {
+    "playwright": "^1.63.0"
+  }
+}

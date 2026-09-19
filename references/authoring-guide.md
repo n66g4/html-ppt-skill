@@ -176,7 +176,7 @@ Walk through every slide with arrow keys. Press:
 - **T** — cycle the 3 selected themes and verify none breaks layout.
 - **E** — open compact page navigation and confirm thumbnails/titles fit.
 - **O** — overview grid; catch clipping and overcrowding.
-- **S** — speaker view; verify notes exist and presenter controls work.
+- **P** — presenter view; verify notes exist and presenter controls work.
 - **A** — demo animation cycling if the deck uses animation targets.
 
 Also verify mouse-wheel navigation: one wheel gesture should advance or go

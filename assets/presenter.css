@@ -1,0 +1,348 @@
+/* html-ppt-skill :: presenter.css — guizang-style in-page presenter (Phase 1+) */
+body.html-ppt-presenter-active > .deck,
+body.html-ppt-presenter-active > .progress-bar,
+body.html-ppt-presenter-active > .notes-overlay,
+body.html-ppt-presenter-active > .overview,
+body.html-ppt-presenter-active > .page-navigator,
+body.html-ppt-presenter-active > .page-nav-hotspot {
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+#html-ppt-presenter {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: none;
+  grid-template-rows: auto 1fr auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: #101216;
+  color: #f5f6f7;
+  font-family: Inter, "Noto Sans SC", -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+body.html-ppt-presenter-active #html-ppt-presenter {
+  display: grid;
+}
+
+.hpp-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 22px;
+  border-bottom: 1px solid #2b2e35;
+  background: #15181d;
+}
+
+.hpp-brand { font-weight: 650; letter-spacing: .02em; }
+.hpp-meta { display: flex; align-items: center; gap: 10px; color: #aeb4be; font-size: 13px; flex-wrap: wrap; }
+
+.hpp-sync {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid #343943;
+  background: #1a1d24;
+}
+.hpp-sync[data-state="synced"] { color: #72df99; border-color: rgba(114,223,153,.35); }
+.hpp-sync[data-state="connecting"] { color: #f5c84c; border-color: rgba(245,200,76,.35); }
+.hpp-sync[data-state="disconnected"],
+.hpp-sync[data-state="blocked"] { color: #ff8a8a; border-color: rgba(255,138,138,.35); }
+
+.hpp-btn {
+  appearance: none;
+  border: 1px solid #343943;
+  background: #1d2128;
+  color: #eef1f4;
+  border-radius: 8px;
+  padding: 7px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.hpp-btn:hover { background: #252a33; border-color: #636b78; }
+.hpp-btn:active { transform: translateY(1px); }
+
+.hpp-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1.75fr) minmax(280px, .75fr);
+  gap: 16px;
+  min-height: 0;
+  padding: 16px 22px;
+}
+
+.hpp-preview-stack {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) clamp(120px, 22vh, 180px);
+  gap: 14px;
+  min-width: 0;
+  min-height: 0;
+}
+
+.hpp-stage-card {
+  background: #171a20;
+  border: 1px solid #2b2f37;
+  border-radius: 12px;
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+}
+
+.hpp-stage-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid #292d34;
+  font-size: 13px;
+  font-weight: 650;
+  color: #c5cad3;
+}
+
+.hpp-frame-viewport {
+  position: relative;
+  min-height: 0;
+  background: #000;
+  overflow: hidden;
+}
+
+.hpp-frame {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1920px;
+  height: 1080px;
+  border: 0;
+  transform-origin: top left;
+  pointer-events: none;
+  background: #000;
+}
+
+.hpp-frame-viewport.is-image-pickable .hpp-frame {
+  pointer-events: auto;
+  cursor: zoom-in;
+}
+
+.hpp-next-card .hpp-stage-label { color: #8f97a3; }
+
+.hpp-preview-stack.is-overview > .hpp-stage-card { display: none; }
+.hpp-overview {
+  grid-row: 1 / -1;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+  background: #171a20;
+  border: 1px solid #2b2f37;
+  border-radius: 12px;
+  overflow: hidden;
+}
+.hpp-overview[hidden] { display: none; }
+.hpp-overview-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid #292d34;
+}
+.hpp-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+  align-content: start;
+  overflow: auto;
+  padding: 14px;
+}
+.hpp-overview-page {
+  appearance: none;
+  min-height: 112px;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #343943;
+  border-radius: 10px;
+  background: #111318;
+  color: #eef1f4;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+}
+.hpp-overview-page:hover { background: #1d2128; border-color: #636b78; }
+.hpp-overview-page.is-current {
+  border-color: #84a8ff;
+  box-shadow: inset 0 0 0 1px #84a8ff;
+}
+.hpp-overview-page-no { color: #8f97a3; font: 600 12px/1 "SF Mono", monospace; }
+.hpp-overview-page-title { font-size: 14px; font-weight: 650; line-height: 1.35; }
+.hpp-overview-page-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: #7f8793;
+  font-size: 11px;
+}
+
+.hpp-annot-tools { display: flex; align-items: center; gap: 5px; margin-left: auto; flex-wrap: wrap; }
+.hpp-annot-tools .hpp-btn { font-size: 12px; padding: 5px 9px; }
+.hpp-annot-tools .hpp-btn.is-active,
+.hpp-grid-btn.is-active { color: #111318; background: #ff5b63; border-color: #ff5b63; }
+.hpp-grid-btn.is-active { background: #edf1f5; border-color: #edf1f5; color: #111318; }
+
+.hpp-frame-viewport { position: relative; }
+.hpp-annotation-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  touch-action: none;
+}
+.hpp-annotation-layer.is-active { pointer-events: auto; cursor: crosshair; }
+
+.hpp-session-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; padding-top: 6px; border-top: 1px solid #343943; }
+.hpp-session-actions .hpp-btn.is-on { color: #111318; background: #72df99; border-color: #72df99; }
+.hpp-time-value.is-over { color: #ff8a8a; }
+.hpp-time-value.is-remaining { color: #72df99; }
+
+.hpp-notes-card {
+  background: #171a20;
+  border: 1px solid #2b2f37;
+  border-radius: 12px;
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+}
+
+.hpp-notes-head {
+  padding: 16px 18px;
+  border-bottom: 1px solid #292d34;
+}
+
+.hpp-notes-label {
+  margin-bottom: 6px;
+  color: #848c98;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+.hpp-notes-title { font-size: 21px; font-weight: 680; line-height: 1.32; margin-bottom: 0; }
+
+.hpp-purpose-block {
+  margin-top: 14px;
+  padding: 11px 12px;
+  border-left: 3px solid #84a8ff;
+  background: #111318;
+}
+.hpp-purpose-copy { color: #c9ced6; font-size: 14px; line-height: 1.55; }
+.hpp-muted { color: #6e7681; }
+
+.hpp-notes-draft-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 15px;
+  padding-top: 13px;
+  border-top: 1px solid #2d3139;
+}
+.hpp-notes-draft-head .hpp-notes-label { margin: 0 0 4px; }
+.hpp-note-meta { color: #8f97a3; font-size: 12px; }
+
+.hpp-notes-tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.hpp-notes-tools .hpp-btn { padding: 7px 9px; font-size: 12px; min-width: 0; }
+.hpp-notes-status { font-size: 11px; color: #8f97a3; white-space: nowrap; }
+.hpp-notes-status.is-saved { color: #72df99; }
+
+.hpp-note-editor {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  resize: none;
+  border: 0;
+  outline: 0;
+  background: #171a20;
+  color: #edf0f3;
+  padding: 18px;
+  font: 400 var(--hpp-note-size, 17px)/1.72 Inter, "Noto Sans SC", sans-serif;
+}
+.hpp-note-editor:focus {
+  box-shadow: inset 0 0 0 1px #3d4654;
+}
+
+.hpp-page-state span { display: block; color: #8f97a3; font-size: 12px; margin-top: 4px; }
+
+.hpp-bottom {
+  display: grid;
+  grid-template-columns: minmax(300px, 1fr) auto minmax(100px, .6fr);
+  align-items: center;
+  gap: 16px;
+  padding: 10px 22px;
+  border-top: 1px solid #2b2e35;
+  background: #15181d;
+}
+
+.hpp-time-dashboard { display: flex; gap: 10px; flex-wrap: wrap; }
+.hpp-time-stat {
+  min-width: 88px;
+  padding: 6px 10px;
+  border: 1px solid #2b2f37;
+  border-radius: 8px;
+  background: #171a20;
+}
+.hpp-time-label { display: block; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: #8f97a3; }
+.hpp-time-value { display: block; font: 700 20px/1.1 "SF Mono", "JetBrains Mono", monospace; color: #eef1f4; margin-top: 2px; }
+.hpp-time-hint { display: block; font-size: 11px; color: #7f8793; margin-top: 2px; }
+
+.hpp-control-stack { display: grid; gap: 6px; justify-items: center; }
+.hpp-controls, .hpp-session-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+
+.hpp-page-state { text-align: right; color: #aeb4be; font-size: 13px; }
+.hpp-page-state strong { display: block; font-size: 16px; color: #f5f6f7; }
+
+.hpp-deck-hint {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 40;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(16,18,22,.82);
+  color: #d8dde5;
+  font-size: 12px;
+  backdrop-filter: blur(8px);
+  cursor: pointer;
+  font-family: inherit;
+}
+.hpp-deck-hint kbd {
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(255,255,255,.08);
+  border: 1px solid rgba(255,255,255,.12);
+  font-family: "SF Mono", monospace;
+  font-size: 11px;
+}
+body.html-ppt-presenter-active .hpp-deck-hint { display: none; }
+
+@media (max-width: 960px) {
+  .hpp-main { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) minmax(180px, .55fr); }
+  .hpp-bottom { grid-template-columns: 1fr; gap: 10px; }
+  .hpp-page-state { text-align: left; }
+}

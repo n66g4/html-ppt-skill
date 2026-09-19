@@ -98,7 +98,7 @@
     <div class="main">
       <p class="kicker">WORKED EXAMPLE</p>
       <h2 class="h2 mt-s">Factorial, 7 lines.</h2>
-      <div class="code mt-m"><pre style="margin:0"><span class="cmt"># fact(n) = n × (n-1) × … × 1,  and fact(0) = 1</span>
+      <div class="code mt-m"><pre class="m-0"><span class="cmt"># fact(n) = n × (n-1) × … × 1,  and fact(0) = 1</span>
 <span class="kw">def</span> fact(n):
     <span class="kw">if</span> n == <span class="str">0</span>:          <span class="cmt"># base case</span>
         <span class="kw">return</span> <span class="str">1</span>
@@ -131,8 +131,8 @@
       <h2 class="h2 mt-s">Write <em>sum_to(n)</em>.</h2>
       <p class="lede mt-m">Return <code>1 + 2 + … + n</code> using recursion — no loops allowed.</p>
       <div class="exercise mt-l">
-        <p style="margin:0;font-size:18px;color:var(--text-1)"><b>Your task</b></p>
-        <ol style="color:var(--text-2);line-height:1.8;margin:10px 0 0">
+        <p class="m-0" style="font-size:18px;color:var(--text-1)"><b>Your task</b></p>
+        <ol class="mt-s" style="color:var(--text-2);line-height:1.8">
           <li>Write the base case. What does <code>sum_to(0)</code> return?</li>
           <li>Write the recursive case in terms of <code>sum_to(n - 1)</code>.</li>
           <li>Test it: <code>sum_to(5) == 15</code>, <code>sum_to(10) == 55</code>.</li>
@@ -162,9 +162,9 @@
       <p class="kicker">CHECK YOUR UNDERSTANDING</p>
       <h2 class="h2 mt-s">Which function will recurse forever?</h2>
       <div class="mt-l">
-        <div class="mcq"><div class="letter">A</div><div><b>def f(n): return 1 if n == 0 else n * f(n - 1)</b><p class="dim" style="font-size:13px;margin:4px 0 0">Base case <code>n == 0</code>, shrinks toward it. Terminates.</p></div></div>
-        <div class="mcq correct"><div class="letter">B</div><div><b>def f(n): return n + f(n + 1)</b><p class="dim" style="font-size:13px;margin:4px 0 0"><b style="color:var(--accent)">✓ Correct.</b> No base case, and <code>n</code> grows — infinite recursion.</p></div></div>
-        <div class="mcq"><div class="letter">C</div><div><b>def f(n): return n if n &lt; 2 else f(n - 1) + f(n - 2)</b><p class="dim" style="font-size:13px;margin:4px 0 0">Classic Fibonacci. Base case on <code>n &lt; 2</code>. Terminates.</p></div></div>
+        <div class="mcq"><div class="letter">A</div><div><b>def f(n): return 1 if n == 0 else n * f(n - 1)</b><p class="dim mt-s" style="font-size:13px">Base case <code>n == 0</code>, shrinks toward it. Terminates.</p></div></div>
+        <div class="mcq correct"><div class="letter">B</div><div><b>def f(n): return n + f(n + 1)</b><p class="dim mt-s" style="font-size:13px"><b style="color:var(--accent)">✓ Correct.</b> No base case, and <code>n</code> grows — infinite recursion.</p></div></div>
+        <div class="mcq"><div class="letter">C</div><div><b>def f(n): return n if n &lt; 2 else f(n - 1) + f(n - 2)</b><p class="dim mt-s" style="font-size:13px">Classic Fibonacci. Base case on <code>n &lt; 2</code>. Terminates.</p></div></div>
       </div>
     </div>
   </section>

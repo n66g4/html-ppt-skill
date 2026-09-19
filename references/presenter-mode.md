@@ -6,7 +6,7 @@ that needs hidden speaker notes.
 
 ## What The Template Provides
 
-- **S** opens a presenter window with current slide, next slide, script, and timer.
+- **P** opens in-page presenter view (dual 16:9 previews, structured notes, grid) and a separate audience window (`?audience=1`).
 - **T** cycles the 3 content-fit themes chosen for this deck.
 - **E** opens a compact left-side page navigator with smaller thumbnails.
 - **O** opens the overview grid.
@@ -54,7 +54,7 @@ speaker-only explanation on the slide canvas.
     <p class="lede" data-anim="fade-up">One clear sentence for the audience.</p>
     <aside class="notes">
       Speaker notes go here. These notes are hidden on the audience screen and
-      shown in the S-key presenter window.
+      shown in the P-key presenter window.
     </aside>
   </section>
 </div>
@@ -116,19 +116,57 @@ Recommended layer:
 }
 ```
 
+## Structured Speaker Notes (SPEAKER_NOTES)
+
+Add a script block before `runtime.js`:
+
+```html
+<script>
+window.__SPEAKER_NOTES__ = [
+  {
+    id: 'cover',              // must match section[data-slide-id]
+    title: '封面',
+    section: '开场',
+    minutes: 1,
+    purpose: '这一页要让观众理解什么',
+    talk: ['要点 1', '要点 2'],
+    transition: '为什么下一页紧接着出现'
+  }
+];
+</script>
+```
+
+Each slide should set `data-slide-id="cover"`. The presenter right panel shows **title + purpose + a large editable draft**. On first visit, the draft is auto-filled from `SPEAKER_NOTES` (or `<aside class="notes">`); edits persist in `localStorage` by slide id.
+
+## Presenter Shortcuts
+
+| Key | Action |
+|---|---|
+| P | Enter presenter mode |
+| G / O / E | Toggle slide grid (O/E 兼容旧习惯) |
+| T | Cycle theme (syncs to audience window) |
+| ← → Space Enter Backspace | Navigate slides |
+| L | Laser pointer |
+| C | Circle annotation |
+| X | Clear annotations |
+| B / W | Black / white screen on audience |
+| F | Fullscreen |
+| Esc | Clear image zoom, close grid, then exit presenter |
+
+While focus is in the note editor textarea, navigation keys are not intercepted.
+**V** (edit mode) is disabled during presenter mode.
+
 ## How Presenter Preview Works
 
-Each presenter preview is an `<iframe>` that loads the same deck with a
-`?preview=N` query param. `runtime.js` renders only slide N in that iframe, so
-preview colors, fonts, and layout match the audience screen. On slide change,
-the presenter window sends a `preview-goto` message instead of reloading the
-iframe, which keeps previews smooth.
+Each preview is an `<iframe>` loading the deck with `?preview=N` (1-based).
+`runtime.js` renders only slide N in that iframe so colors and layout match the audience screen.
 
 ## QA Checklist
 
 - Press **T** through all 3 chosen themes and check layout, contrast, and overflow.
 - Press **E** and confirm the compact navigator shows more pages without bulky cards.
 - Press **O** and scan the whole deck for clipping.
-- Press **S** and confirm current, next, script, and timer cards work.
+- Press **P** and confirm current, next, script, and timer cards work.
+- Click an image in the current-page preview; the audience window should show a fullscreen zoom. Press **Esc** to dismiss.
 - Navigate away and back to animated slides; titles, grids, and cards should replay.
 - Confirm `[data-fx]` pages show subtle Canvas backgrounds and do not cover content.

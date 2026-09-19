@@ -69,7 +69,7 @@ One command, no build. Pure static HTML/CSS/JS with only CDN webfonts.
 - **31 layouts** (`templates/single-page/*.html`) with realistic demo data
 - **27 CSS animations** (`assets/animations/animations.css`) via `data-anim`
 - **20 canvas FX animations** (`assets/animations/fx/*.js`) via `data-fx` — particle-burst, confetti-cannon, firework, starfield, matrix-rain, knowledge-graph (force-directed), neural-net (pulses), constellation, orbit-ring, galaxy-swirl, word-cascade, letter-explode, chain-react, magnetic-field, data-stream, gradient-blob, sparkle-trail, shockwave, typewriter-multi, counter-explosion
-- **Keyboard + wheel runtime** (`assets/runtime.js`) — arrows, mouse wheel, T (theme), A (anim), F/O/E, **S (presenter mode: magnetic-card popup with CURRENT / NEXT / SCRIPT / TIMER cards)**, **V (interactive edit mode)**, N (notes drawer), R (reset timer in presenter). The E-key page navigator is compact, token-based, and theme-aware.
+- **Keyboard + wheel runtime** (`assets/runtime.js`) — arrows, mouse wheel, T (theme), F/O/E, **P (presenter mode: in-page presenter view + separate audience window)**, **V (interactive edit mode)**, N (notes drawer). The E-key page navigator is compact, token-based, and theme-aware.
 - **Interactive editor** (`assets/editor.js`, `assets/editor.css`) — auto-loaded by runtime in normal audience view. Press V to select, drag, resize, edit text, style text, undo/redo, and save edited HTML through the browser File System Access flow, with download fallback.
 - **FX runtime** (`assets/animations/fx-runtime.js`) — auto-inits `[data-fx]` on slide enter, cleans up on leave
 - **Showcase decks** for themes / layouts / animations / full-decks gallery
@@ -89,22 +89,29 @@ See [references/presenter-mode.md](references/presenter-mode.md) for the full au
 2. **每页 150–300 字** — 2–3 分钟/页的节奏
 3. **用口语，不用书面语** — "因此"→"所以"，"该方案"→"这个方案"
 
-All full-deck templates support the S key presenter mode (it's built into `runtime.js`). **S opens a new popup window with 4 magnetic cards**:
-- 🔵 **CURRENT** — pixel-perfect iframe preview of the current slide
-- 🟣 **NEXT** — pixel-perfect iframe preview of the next slide
-- 🟠 **SPEAKER SCRIPT** — large-font 逐字稿 (scrollable)
-- 🟢 **TIMER** — elapsed time + slide counter + prev/next/reset buttons
+All full-deck templates support the P key presenter mode (built into `runtime.js` +
+`assets/presenter.js`). **P turns the current window into the presenter view and opens a
+separate audience window** (`?audience=1`) to drag onto the projector:
 
-Each card is **draggable by its header** and **resizable by the bottom-right corner handle**. Card positions/sizes persist to `localStorage` per deck. A "Reset layout" button restores the default arrangement.
+- **当前页 / 下一页** — two pixel-perfect 16:9 iframe previews
+- **标题 + 本页目的 + 草稿（备注）** — right panel; the draft is a large editable
+  textarea, prefilled from `SPEAKER_NOTES` or `<aside class="notes">`, autosaved to
+  `localStorage` per `data-slide-id`
+- **计时** — elapsed / current-slide / delta against the planned minutes
+- **宫格 · 激光 · 圈选 · 清除 · 黑屏 · 白屏 · 冻结 · 自动翻页**
 
 **Why the previews are pixel-perfect**: each preview is an `<iframe>` that loads the actual deck HTML with a `?preview=N` query param; `runtime.js` detects this and renders only slide N with no chrome. So the preview uses the **same CSS, theme, fonts, and viewport as the audience view** — colors and layout are guaranteed identical.
 
-**Smooth navigation**: on slide change, the presenter window sends `postMessage({type:'preview-goto', idx:N})` to each iframe. The iframe just toggles `.is-active` between slides — **no reload, no flicker**. The two windows also stay in sync via `BroadcastChannel`.
+**Smooth navigation**: on slide change the presenter sends `postMessage({type:'preview-goto', idx:N})` to each iframe, which just toggles `.is-active` — **no reload, no flicker**. The presenter and audience windows stay in sync over `BroadcastChannel`; a reloaded audience window announces `audience-ready` and gets the current slide, theme, and screen state replayed.
+
+**Click any image in the 当前页 preview to blow it up full-screen on the audience
+screen**; click it again or press `Esc` to dismiss.
 
 Only `presenter-mode-reveal` is designed from the ground up around the feature with proper example 逐字稿 on every slide.
 
-Keyboard in presenter window: `← →` navigate (syncs audience) · `R` reset timer · `Esc` close popup.
-Keyboard in audience window: `S` open presenter · `T` cycle theme · `← →` navigate (syncs presenter) · `F` fullscreen · `O` overview · `E` left-side thumbnail navigator.
+Keyboard in presenter view: `← → Space Enter Backspace` navigate · `G / O / E` grid ·
+`T` theme · `L / C / X` laser / circle / clear · `B / W` black / white audience screen ·
+`F` fullscreen · `Esc` dismiss zoom, then grid, then exit.
 
 ## Before you author anything — ALWAYS ask or recommend
 
@@ -454,11 +461,11 @@ Before handing off a finished HTML deck:
   `%`, `$`, `B`, `M`, or benchmark counts. Prominent visible metrics should be
   `.counter` elements with `data-to`; run the deck in a browser and confirm the
   values visibly reset to `0` and count up when entering the slide.
-- In S-key presenter mode, verify `<strong>` cues appear visually emphasized in
-  the SPEAKER SCRIPT panel, normally orange and bold via runtime CSS. If a
-  previously opened deck still shows plain text, clear or version-bump the
-  presenter notes `localStorage` key so stale editable notes do not override the
-  updated `<aside class="notes">` HTML.
+- In P-key presenter mode the 草稿（备注）panel is a plain-text textarea, so
+  `<strong>` cues render as text there; they still render bold in the N-key notes
+  drawer. If a previously opened deck shows stale wording, clear or version-bump
+  the presenter notes `localStorage` key, because a saved draft always wins over
+  the updated `<aside class="notes">` HTML.
 - Use browser automation for DOM/layout/console checks when available. If the
   system Node cannot import Playwright, try the bundled workspace Node modules
   from `load_workspace_dependencies` before declaring browser automation
@@ -539,14 +546,13 @@ Windows PowerShell:
 ←  →  Space  PgUp  PgDn  Home  End    navigate
 Mouse wheel down/up                    next / previous slide
 F                                       fullscreen
-S                                       open presenter window (magnetic cards: current/next/script/timer)
+P                                       presenter view + audience window (?audience=1)
 N                                       quick notes drawer (bottom overlay)
-R                                       reset timer (in presenter window)
+G / L / C / X / B / W                   in presenter: grid, laser, circle, clear, black, white
 ?preview=N                              URL param — force preview-only mode (single slide, no chrome)
 O                                       full-screen thumbnail wall overview
 E                                       left-side thumbnail page navigator
 T                                       cycle themes (reads data-themes attr)
-A                                       cycle demo animation on current slide
 V                                       interactive edit mode
 Ctrl+B                                  toggle bold; in text editing, only affects selected text
 Ctrl+Z / Ctrl+Y                         undo / redo in edit mode

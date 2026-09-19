@@ -4,14 +4,12 @@
  * Features:
  *   ← → / space / PgUp PgDn / Home End  navigation
  *   F  fullscreen
- *   S  presenter mode (opens a NEW WINDOW with current/next slide preview + notes + timer)
- *       The original window stays as audience view, synced via BroadcastChannel.
- *       Slide previews use CSS transform:scale() at design resolution for pixel-perfect layout.
+ *   P  presenter mode (in-page overlay + separate audience window via ?audience=1)
+ *       Dual 16:9 iframe previews, notes panel, timer; synced via BroadcastChannel.
  *   N  quick notes overlay (bottom drawer)
  *   O  slide overview grid
  *   E  page navigator with slide thumbnails
  *   T  cycle themes (reads data-themes on <html> or <body>)
- *   A  cycle demo animation on current slide
  *   URL hash #/N  deep-link to slide N (1-based)
  *   Progress bar auto-managed
  */
@@ -20,17 +18,11 @@
 
   const runtimeScript = document.currentScript;
 
-  const ANIMS = ['fade-up','fade-down','fade-left','fade-right','rise-in','drop-in',
-    'zoom-pop','blur-in','glitch-in','typewriter','neon-glow','shimmer-sweep',
-    'gradient-flow','stagger-list','counter-up','path-draw','parallax-tilt',
-    'card-flip-3d','cube-rotate-3d','page-turn-3d','perspective-zoom',
-    'marquee-scroll','kenburns','confetti-burst','spotlight','morph-shape','ripple-reveal'];
-
   function ready(fn){ if(document.readyState!='loading')fn(); else document.addEventListener('DOMContentLoaded',fn);}
 
   function loadDeckEditorAssets() {
     if (window.HtmlPptDeckEditor || window.__htmlPptDeckEditorLoading) return;
-    if (getPreviewIdx() >= 0 || getQueryParam('presenter') === '1') return;
+    if (getPreviewIdx() >= 0 || getQueryParam('audience') === '1') return;
     if (window.matchMedia && window.matchMedia('print').matches) return;
 
     const src = runtimeScript && runtimeScript.getAttribute('src');
@@ -70,11 +62,43 @@
     try { return new URLSearchParams(location.search || '').get(name); }
     catch(e) { return null; }
   }
-  function getPresenterIdx(total) {
-    if (getQueryParam('presenter') !== '1') return -1;
-    const raw = parseInt(getQueryParam('slide') || '1', 10);
-    const idx = Number.isFinite(raw) ? raw - 1 : 0;
-    return Math.max(0, Math.min(total - 1, idx));
+  function getRuntimeAssetBase() {
+    const src = runtimeScript && runtimeScript.getAttribute('src');
+    return src && src.indexOf('/') >= 0 ? src.slice(0, src.lastIndexOf('/') + 1) : 'assets/';
+  }
+  function loadPresenterAssets(onReady) {
+    if (window.HtmlPptPresenter) {
+      if (onReady) onReady();
+      return;
+    }
+    if (window.__htmlPptPresenterLoading) {
+      if (onReady) document.addEventListener('html-ppt-presenter-ready', onReady, { once: true });
+      return;
+    }
+    window.__htmlPptPresenterLoading = true;
+    const base = getRuntimeAssetBase();
+    if (!document.querySelector('link[data-html-ppt-presenter-asset="css"]')) {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = base + 'presenter.css';
+      link.setAttribute('data-html-ppt-presenter-asset', 'css');
+      document.head.appendChild(link);
+    }
+    if (!document.querySelector('script[data-html-ppt-presenter-asset="js"]')) {
+      const script = document.createElement('script');
+      script.src = base + 'presenter.js';
+      script.defer = true;
+      script.setAttribute('data-html-ppt-presenter-asset', 'js');
+      script.addEventListener('load', () => {
+        window.__htmlPptPresenterLoading = false;
+        document.dispatchEvent(new Event('html-ppt-presenter-ready'));
+        if (onReady) onReady();
+      });
+      script.addEventListener('error', () => { window.__htmlPptPresenterLoading = false; });
+      document.head.appendChild(script);
+    } else if (onReady) {
+      document.addEventListener('html-ppt-presenter-ready', onReady, { once: true });
+    }
   }
   function getDeckBaseUrl() {
     const url = new URL(location.href);
@@ -134,16 +158,6 @@
       requestAnimationFrame(tick);
     });
   }
-  function makePresenterNotesFingerprint(slideMeta) {
-    const text = slideMeta.map(item => (item.title || '') + '\n' + (item.notes || '')).join('\n---\n');
-    let hash = 2166136261;
-    for (let i = 0; i < text.length; i++) {
-      hash ^= text.charCodeAt(i);
-      hash = Math.imul(hash, 16777619);
-    }
-    return (hash >>> 0).toString(36);
-  }
-
   ready(function () {
     const deck = document.querySelector('.deck');
     if (!deck) return;
@@ -168,9 +182,17 @@
             s.style.pointerEvents = 'auto';
           }
         });
+        slides[i].querySelectorAll('[data-anim]').forEach(el => {
+          const a = el.getAttribute('data-anim');
+          el.classList.remove('anim-' + a);
+          void el.offsetWidth;
+          el.classList.add('anim-' + a);
+        });
+        /* Previews show final counter values rather than counting up, so the
+         * presenter always reads the real number. */
+        finalizeCounters(slides[i]);
       }
       showSlide(previewOnlyIdx);
-      finalizeCounters(slides[previewOnlyIdx]);
       /* Hide chrome that the presenter shouldn't see in preview */
       const hideSel = '.progress-bar, .notes-overlay, .overview, .notes, aside.notes, .speaker-notes';
       document.querySelectorAll(hideSel).forEach(el => { el.style.display = 'none'; });
@@ -210,30 +232,261 @@
           document.documentElement.setAttribute('data-theme', e.data.name);
         }
       });
+      function isZoomableImage(img) {
+        if (!img || img.tagName !== 'IMG') return false;
+        if (img.closest('.notes, aside.notes, .speaker-notes')) return false;
+        if (img.hasAttribute('data-no-zoom')) return false;
+        return true;
+      }
+      document.addEventListener('click', function (e) {
+        const img = e.target && e.target.closest ? e.target.closest('img') : null;
+        if (!isZoomableImage(img)) return;
+        const slide = img.closest('.slide');
+        if (!slide || !slide.classList.contains('is-active')) return;
+        e.preventDefault();
+        e.stopPropagation();
+        try {
+          window.parent.postMessage({
+            type: 'preview-image-click',
+            src: img.currentSrc || img.src,
+            alt: img.alt || ''
+          }, '*');
+        } catch (err) { /* ignore */ }
+      }, true);
+      document.addEventListener('keydown', function (e) {
+        if (e.key !== 'Escape') return;
+        try {
+          window.parent.postMessage({ type: 'preview-key', key: 'Escape' }, '*');
+        } catch (err) { /* ignore */ }
+      }, true);
+
       /* Signal to parent that preview iframe is ready */
       try { window.parent && window.parent.postMessage({ type: 'preview-ready' }, '*'); } catch(e) {}
       return;
     }
 
-    const presenterOnlyIdx = getPresenterIdx(total);
-    if (presenterOnlyIdx >= 0) {
-      const deckUrl = getDeckBaseUrl();
-      const slideMeta = slides.map((s, i) => {
-        const note = s.querySelector('.notes, aside.notes, .speaker-notes');
-        return {
-          title: s.getAttribute('data-title') ||
-            (s.querySelector('h1,h2,h3')||{}).textContent || ('Slide '+(i+1)),
-          notes: note ? note.innerHTML : ''
-        };
+    /* ===== Audience window (?audience=1) — synced slide view for projector ===== */
+    if (getQueryParam('audience') === '1') {
+      let audienceIdx = 0;
+      const rawSlide = parseInt(getQueryParam('slide') || '1', 10);
+      if (Number.isFinite(rawSlide) && rawSlide > 0) {
+        audienceIdx = Math.max(0, Math.min(total - 1, rawSlide - 1));
+      }
+      document.documentElement.setAttribute('data-audience', '1');
+      document.body.setAttribute('data-audience', '1');
+      document.querySelectorAll('.progress-bar, .notes-overlay, .overview, .page-navigator, .page-nav-hotspot, .notes, aside.notes, .speaker-notes').forEach(el => {
+        el.style.display = 'none';
       });
-      const presenterTheme = getQueryParam('theme') ||
-        document.documentElement.getAttribute('data-theme') || '';
-      const notesVersionAttr = ((document.documentElement && document.documentElement.getAttribute('data-notes-version')) ||
-        (document.body && document.body.getAttribute('data-notes-version')) || '').trim();
-      const notesVersion = [notesVersionAttr, makePresenterNotesFingerprint(slideMeta)].filter(Boolean).join(':');
-      document.open();
-      document.write(buildPresenterHTML(deckUrl, slideMeta, total, presenterOnlyIdx, CHANNEL_NAME, presenterTheme, notesVersion));
-      document.close();
+
+      let audienceBc;
+      try { audienceBc = new BroadcastChannel(CHANNEL_NAME); } catch(e) { audienceBc = null; }
+
+      const audienceRoot = document.documentElement;
+      let audienceThemeBase = audienceRoot.getAttribute('data-theme-base');
+      if (!audienceThemeBase) {
+        const existingLink = document.getElementById('theme-link');
+        if (existingLink) {
+          const rawHref = existingLink.getAttribute('href') || '';
+          const lastSlash = rawHref.lastIndexOf('/');
+          audienceThemeBase = lastSlash >= 0 ? rawHref.substring(0, lastSlash + 1) : 'assets/themes/';
+        } else {
+          audienceThemeBase = 'assets/themes/';
+        }
+      }
+      function audienceApplyTheme(name) {
+        name = String(name || '').trim().replace(/\.css$/i, '');
+        if (!name) return;
+        let link = document.getElementById('theme-link');
+        if (!link) {
+          link = document.createElement('link');
+          link.rel = 'stylesheet';
+          link.id = 'theme-link';
+          document.head.appendChild(link);
+        }
+        link.href = audienceThemeBase + name + '.css';
+        audienceRoot.setAttribute('data-theme', name);
+      }
+
+      function audienceGo(n) {
+        n = Math.max(0, Math.min(total - 1, n));
+        slides.forEach((s, i) => {
+          s.classList.toggle('is-active', i === n);
+          s.classList.toggle('is-prev', i < n);
+        });
+        audienceIdx = n;
+        slides[n].querySelectorAll('[data-anim]').forEach(el => {
+          const a = el.getAttribute('data-anim');
+          el.classList.remove('anim-' + a);
+          void el.offsetWidth;
+          el.classList.add('anim-' + a);
+        });
+        animateCounters(slides[n]);
+      }
+
+      let audienceFrozen = false;
+      let audienceScreenMode = 'normal';
+      let audienceLaser = null;
+      let audienceLaserHideAt = 0;
+      let audienceLaserTimer = null;
+      let audienceCircles = [];
+      let audienceImageFocusEl = null;
+
+      function ensureAudienceImageFocus() {
+        if (audienceImageFocusEl) return audienceImageFocusEl;
+        const el = document.createElement('div');
+        el.id = 'html-ppt-audience-image-focus';
+        el.style.cssText = 'position:fixed;inset:0;z-index:10001;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.88);padding:24px;box-sizing:border-box;pointer-events:none';
+        const img = document.createElement('img');
+        img.style.cssText = 'max-width:100%;max-height:100%;object-fit:contain;display:block';
+        img.alt = '';
+        el.appendChild(img);
+        document.body.appendChild(el);
+        audienceImageFocusEl = el;
+        return el;
+      }
+
+      function setAudienceImageFocus(data) {
+        if (!data || !data.src) {
+          clearAudienceImageFocus();
+          return;
+        }
+        const el = ensureAudienceImageFocus();
+        const img = el.querySelector('img');
+        img.src = data.src;
+        img.alt = data.alt || '';
+        el.style.display = 'flex';
+      }
+
+      function clearAudienceImageFocus() {
+        if (!audienceImageFocusEl) return;
+        audienceImageFocusEl.style.display = 'none';
+        const img = audienceImageFocusEl.querySelector('img');
+        if (img) {
+          img.removeAttribute('src');
+          img.alt = '';
+        }
+      }
+
+      function ensureAudienceCover() {
+        let cover = document.getElementById('html-ppt-audience-cover');
+        if (!cover) {
+          cover = document.createElement('div');
+          cover.id = 'html-ppt-audience-cover';
+          /* Must sit above the image-zoom overlay so B / W really blank the screen. */
+          cover.style.cssText = 'position:fixed;inset:0;z-index:10020;display:none;pointer-events:none';
+          document.body.appendChild(cover);
+        }
+        return cover;
+      }
+      function ensureAudienceInk() {
+        let ink = document.getElementById('html-ppt-audience-ink');
+        if (!ink) {
+          ink = document.createElement('canvas');
+          ink.id = 'html-ppt-audience-ink';
+          ink.style.cssText = 'position:fixed;inset:0;z-index:9998;width:100vw;height:100vh;pointer-events:none';
+          document.body.appendChild(ink);
+        }
+        return ink;
+      }
+      function drawAudienceInk() {
+        const canvas = ensureAudienceInk();
+        const ctx = canvas.getContext('2d');
+        const w = canvas.width = window.innerWidth;
+        const h = canvas.height = window.innerHeight;
+        ctx.clearRect(0, 0, w, h);
+        ctx.strokeStyle = '#ff5b63';
+        ctx.lineWidth = Math.max(2, w * 0.003);
+        audienceCircles.forEach(c => {
+          const x = ((c.x1 + c.x2) / 2) * w;
+          const y = ((c.y1 + c.y2) / 2) * h;
+          const rx = Math.abs(c.x2 - c.x1) * w / 2;
+          const ry = Math.abs(c.y2 - c.y1) * h / 2;
+          ctx.beginPath();
+          ctx.ellipse(x, y, Math.max(8, rx), Math.max(8, ry), 0, 0, Math.PI * 2);
+          ctx.stroke();
+        });
+        const now = Date.now();
+        if (audienceLaser && now < audienceLaserHideAt) {
+          const x = audienceLaser.x * w;
+          const y = audienceLaser.y * h;
+          const r = Math.max(6, w * 0.007);
+          const g = ctx.createRadialGradient(x, y, 0, x, y, r * 3);
+          g.addColorStop(0, 'rgba(255,91,99,.95)');
+          g.addColorStop(1, 'rgba(255,91,99,0)');
+          ctx.fillStyle = g;
+          ctx.beginPath();
+          ctx.arc(x, y, r * 3, 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          audienceLaser = null;
+        }
+      }
+      function setAudienceScreen(mode) {
+        audienceScreenMode = mode || 'normal';
+        const cover = ensureAudienceCover();
+        if (audienceScreenMode === 'black') {
+          cover.style.display = 'block';
+          cover.style.background = '#000';
+        } else if (audienceScreenMode === 'white') {
+          cover.style.display = 'block';
+          cover.style.background = '#fff';
+        } else {
+          cover.style.display = 'none';
+        }
+      }
+
+      function audienceHandleRemote(data) {
+        if (!data) return;
+        if (data.type === 'go' && typeof data.idx === 'number') {
+          clearAudienceImageFocus();
+          if (data.theme) audienceApplyTheme(data.theme);
+          if (!audienceFrozen) audienceGo(data.idx);
+        } else if (data.type === 'theme' && data.name) {
+          audienceApplyTheme(data.name);
+        } else if (data.type === 'screen') {
+          setAudienceScreen(data.mode);
+        } else if (data.type === 'freeze') {
+          audienceFrozen = !!data.value;
+        } else if (data.type === 'laser') {
+          audienceLaser = data.point || null;
+          audienceLaserHideAt = Date.now() + 650;
+          if (audienceLaserTimer) clearTimeout(audienceLaserTimer);
+          audienceLaserTimer = audienceLaser ? setTimeout(() => {
+            audienceLaserTimer = null;
+            audienceLaser = null;
+            drawAudienceInk();
+          }, 700) : null;
+          drawAudienceInk();
+        } else if (data.type === 'circles') {
+          audienceCircles = Array.isArray(data.circles) ? data.circles : [];
+          drawAudienceInk();
+        } else if (data.type === 'clear-ink') {
+          audienceCircles = [];
+          audienceLaser = null;
+          drawAudienceInk();
+        } else if (data.type === 'image-focus') {
+          setAudienceImageFocus(data);
+        } else if (data.type === 'image-focus-clear') {
+          clearAudienceImageFocus();
+        } else if (data.type === 'close') {
+          try { window.close(); } catch(e) { /* ignore */ }
+        }
+      }
+
+      window.addEventListener('resize', drawAudienceInk);
+
+      if (audienceBc) audienceBc.onmessage = (e) => audienceHandleRemote(e.data);
+      window.addEventListener('message', (e) => {
+        if (e.data && e.data.source === 'html-ppt-presenter') audienceHandleRemote(e.data);
+      });
+
+      /* Ask the presenter to replay slide / theme / screen state, so reopening or
+       * reloading this window mid-talk lands on the right slide and theme. */
+      if (audienceBc) {
+        try { audienceBc.postMessage({ type: 'audience-ready' }); } catch(e) { /* ignore */ }
+      }
+
+      audienceGo(audienceIdx);
       return;
     }
 
@@ -243,8 +496,8 @@
     let bc;
     try { bc = new BroadcastChannel(CHANNEL_NAME); } catch(e) { bc = null; }
 
-    // Are we running inside the presenter popup? (legacy flag, now unused)
-    const isPresenterWindow = false;
+    let htmlPptPresenter = null;
+    let presentationStartMs = null;
 
     /* ===== progress bar ===== */
     let bar = document.querySelector('.progress-bar');
@@ -320,7 +573,7 @@
       num.textContent = String(i + 1).padStart(2, '0');
       const title = document.createElement('span');
       title.className = 'overview-label';
-      title.textContent = getSlideTitle(slide, i);
+      title.textContent = getSlideLabel(slide, i);
       meta.append(num, title);
 
       card.append(thumbStage, meta);
@@ -407,7 +660,7 @@
       num.textContent = String(i + 1).padStart(2, '0');
       const title = document.createElement('span');
       title.className = 'page-nav-label';
-      title.textContent = getSlideTitle(slide, i);
+      title.textContent = getSlideLabel(slide, i);
       meta.append(num, title);
 
       item.append(thumbStage, meta);
@@ -416,7 +669,9 @@
       pageNavItems.push(item);
     });
 
-    function getSlideTitle(slide, i) {
+    /* Named apart from getSlideTitle(i): two same-named declarations in this
+     * scope would hoist-shadow each other and blank out every label. */
+    function getSlideLabel(slide, i) {
       const title = slide.getAttribute('data-title') ||
         (slide.querySelector('h1,h2,h3') || {}).textContent ||
         ('第 ' + (i + 1) + ' 页');
@@ -1235,7 +1490,7 @@
 
       // hash
       const hashTarget = '#/'+(n+1);
-      if (location.hash !== hashTarget && !isPresenterWindow) {
+      if (location.hash !== hashTarget) {
         history.replaceState(null,'', hashTarget);
       }
 
@@ -1252,15 +1507,42 @@
 
       // Broadcast to other window (audience ↔ presenter)
       if (!fromRemote && bc) {
-        bc.postMessage({ type: 'go', idx: n });
+        bc.postMessage({ type: 'go', idx: n, theme: root.getAttribute('data-theme') || '' });
       }
+      if (htmlPptPresenter && htmlPptPresenter.isActive()) {
+        htmlPptPresenter.onExternalGo(n);
+      }
+    }
+
+    function getSlideTitle(i) {
+      const s = slides[i];
+      if (!s) return '';
+      return s.getAttribute('data-title') ||
+        (s.querySelector('h1,h2,h3') || {}).textContent ||
+        ('Slide ' + (i + 1));
+    }
+    function getSlideNotes(i) {
+      const s = slides[i];
+      if (!s) return '';
+      const note = s.querySelector('.notes, aside.notes, .speaker-notes');
+      return note ? note.innerHTML : '';
+    }
+    function getSlideId(i) {
+      const s = slides[i];
+      if (!s) return 'slide-' + String(i + 1).padStart(2, '0');
+      return s.getAttribute('data-slide-id') || ('slide-' + String(i + 1).padStart(2, '0'));
+    }
+    function getSpeakerNotesCatalog() {
+      return Array.isArray(window.__SPEAKER_NOTES__) ? window.__SPEAKER_NOTES__ : [];
     }
 
     /* ===== listen for remote navigation / theme changes ===== */
     if (bc) {
       bc.onmessage = function(e) {
         if (!e.data) return;
-        if (e.data.type === 'go' && typeof e.data.idx === 'number') {
+        if (e.data.type === 'audience-ready') {
+          if (htmlPptPresenter && htmlPptPresenter.pushState) htmlPptPresenter.pushState();
+        } else if (e.data.type === 'go' && typeof e.data.idx === 'number') {
           go(e.data.idx, true);
         } else if (e.data.type === 'theme' && e.data.name) {
           /* Sync theme across windows */
@@ -1317,9 +1599,18 @@
     function shouldIgnoreWheel(e) {
       if (e.ctrlKey || e.metaKey || e.altKey) return true;
       const target = e.target && e.target.closest
-        ? e.target.closest('input, textarea, select, [contenteditable="true"], .notes-overlay.open, .overview.open, .page-navigator.open, [data-wheel-ignore]')
+        ? e.target.closest('input, textarea, select, [contenteditable="true"], .notes-overlay.open, .overview.open, .page-navigator.open, .hpp-note-editor, .hpp-overview-grid, [data-wheel-ignore]')
         : null;
       return !!target;
+    }
+
+    function handleWheelNavigate(delta) {
+      if (htmlPptPresenter && htmlPptPresenter.isActive()) {
+        if (htmlPptPresenter.isOverviewOpen && htmlPptPresenter.isOverviewOpen()) return false;
+        return htmlPptPresenter.navigate(delta);
+      }
+      go(idx + delta);
+      return true;
     }
 
     document.addEventListener('wheel', function(e) {
@@ -1338,848 +1629,12 @@
         e.preventDefault();
         return;
       }
-      go(idx + (wheelAccum > 0 ? 1 : -1));
+      handleWheelNavigate(wheelAccum > 0 ? 1 : -1);
       wheelAccum = 0;
       lastWheelNavAt = now;
       e.preventDefault();
     }, { passive: false });
 
-    /* ========== PRESENTER MODE — Magnetic-card popup window ========== */
-    /* Opens a new window with 4 draggable, resizable cards:
-     *   CURRENT  — iframe(?preview=N)   pixel-perfect preview of current slide
-     *   NEXT     — iframe(?preview=N+1) pixel-perfect preview of next slide
-     *   SCRIPT   — large speaker notes (逐字稿)
-     *   TIMER    — elapsed timer + page counter + controls
-     * Cards remember position/size in localStorage.
-     * Two windows sync via BroadcastChannel.
-     */
-    let presenterWin = null;
-
-    function presenterWindowStorageKey() {
-      return 'html-ppt-presenter-window:v2:' + location.pathname;
-    }
-    function readPresenterWindowState() {
-      try {
-        const saved = localStorage.getItem(presenterWindowStorageKey());
-        return saved ? JSON.parse(saved) : null;
-      } catch(e) {
-        return null;
-      }
-    }
-    function presenterWindowFeatures(state) {
-      const w = Math.max(900, Math.min(2600, Math.round((state && (state.innerW || state.w)) || 1500)));
-      const h = Math.max(650, Math.min(1800, Math.round((state && (state.innerH || state.h)) || 920)));
-      const parts = ['width=' + w, 'height=' + h, 'menubar=no', 'toolbar=no'];
-      if (state && Number.isFinite(state.x)) parts.push('left=' + Math.round(state.x));
-      if (state && Number.isFinite(state.y)) parts.push('top=' + Math.round(state.y));
-      return parts.join(',');
-    }
-
-    function openPresenterWindow() {
-      if (presenterWin && !presenterWin.closed) {
-        presenterWin.focus();
-        if (bc) bc.postMessage({ type: 'go', idx: idx });
-        return;
-      }
-
-      const deckUrl = getDeckBaseUrl();
-      const currentTheme = root.getAttribute('data-theme') || (themes[themeIdx] || '');
-      const presenterUrl = deckUrl + '?presenter=1&slide=' + (idx + 1) +
-        (currentTheme ? '&theme=' + encodeURIComponent(currentTheme) : '');
-      const features = presenterWindowFeatures(readPresenterWindowState());
-
-      presenterWin = window.open(presenterUrl, 'html-ppt-presenter', features);
-      if (!presenterWin) {
-        alert('请允许弹出窗口以使用演讲者视图');
-        return;
-      }
-      presenterWin.focus();
-    }
-
-    function buildPresenterHTML(deckUrl, slideMeta, total, startIdx, channelName, currentTheme, notesVersion) {
-      const metaJSON = JSON.stringify(slideMeta);
-      const deckUrlJSON = JSON.stringify(deckUrl);
-      const channelJSON = JSON.stringify(channelName);
-      const themeJSON = JSON.stringify(currentTheme || '');
-      const storageKey = 'html-ppt-presenter:v5:' + location.pathname;
-      const notesVersionRaw = (notesVersion || '').trim();
-      const notesVersionSuffix = notesVersionRaw ? ':' + notesVersionRaw.replace(/[^a-zA-Z0-9_.-]/g, '_') : '';
-      const notesStorageKey = 'html-ppt-presenter-notes:v3' + notesVersionSuffix + ':' + location.pathname;
-      const windowStorageKey = 'html-ppt-presenter-window:v2:' + location.pathname;
-
-      // Build the document as a single template string for clarity
-      return `<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="utf-8">
-<link rel="icon" href="data:,">
-<title>Presenter View</title>
-<style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  html, body {
-    width: 100%; height: 100%; overflow: hidden;
-    background: #1a1d24;
-    background-image:
-      radial-gradient(circle at 20% 30%, rgba(88,166,255,.04), transparent 50%),
-      radial-gradient(circle at 80% 70%, rgba(188,140,255,.04), transparent 50%);
-    color: #e6edf3;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", sans-serif;
-  }
-  /* Stage: positioned area where cards live */
-  #stage { position: absolute; inset: 0 0 34px 0; overflow: hidden; }
-
-  /* Magnetic card */
-  .pcard {
-    position: absolute;
-    z-index: 1;
-    background: #0d1117;
-    border: 1px solid rgba(255,255,255,.1);
-    border-radius: 8px;
-    box-shadow: 0 8px 32px rgba(0,0,0,.45), 0 0 0 1px rgba(255,255,255,.02);
-    display: flex; flex-direction: column;
-    overflow: hidden;
-    min-width: 220px; min-height: 120px;
-    transition: box-shadow .2s, border-color .2s;
-  }
-  .pcard.dragging { box-shadow: 0 16px 48px rgba(0,0,0,.6), 0 0 0 2px rgba(88,166,255,.5); border-color: #58a6ff; transition: none; z-index: 9999; }
-  .pcard.resizing { box-shadow: 0 16px 48px rgba(0,0,0,.6), 0 0 0 2px rgba(63,185,80,.5); border-color: #3fb950; transition: none; z-index: 9999; }
-  .pcard:hover { border-color: rgba(88,166,255,.3); }
-  #card-cur { z-index: 40; }
-  #card-nxt { z-index: 30; }
-  #card-notes { z-index: 20; }
-  #card-timer { z-index: 10; }
-
-  /* Card header (drag handle) */
-  .pcard-head {
-    display: flex; align-items: center; gap: 10px;
-    height: 38px;
-    padding: 0 14px;
-    background: rgba(255,255,255,.04);
-    border-bottom: 1px solid rgba(255,255,255,.06);
-    cursor: move;
-    user-select: none;
-    flex-shrink: 0;
-  }
-  .pcard-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--dot-color, #58a6ff); flex-shrink: 0; }
-  .pcard-title {
-    font-size: 11px; letter-spacing: .15em; text-transform: uppercase;
-    font-weight: 700; color: #8b949e; flex: 1;
-  }
-  .pcard-meta { font-size: 11px; color: #6e7681; }
-
-  /* Card body */
-  .pcard-body { flex: 1; position: relative; overflow: hidden; min-height: 0; }
-
-  /* Preview cards (CURRENT/NEXT) — iframe-based pixel-perfect render */
-  .pcard-preview .pcard-body { background: #000; }
-  .pcard-preview iframe {
-    position: absolute; top: 0; left: 0;
-    width: 1600px; height: 1000px;
-    border: none;
-    transform-origin: top left;
-    pointer-events: none;
-    background: transparent;
-  }
-  .pcard-preview .preview-end {
-    position: absolute; inset: 0;
-    display: flex; align-items: center; justify-content: center;
-    color: #484f58; font-size: 14px; letter-spacing: .12em;
-  }
-
-  /* Notes card */
-  .pcard-notes .pcard-body {
-    padding: 26px 28px 32px;
-    overflow-y: auto;
-    font-size: clamp(20px, 1.18vw, 28px); line-height: 1.8;
-    color: #d0d7de;
-    font-family: "Noto Sans SC", -apple-system, sans-serif;
-    outline: none;
-    caret-color: #f0883e;
-  }
-  .pcard-notes .pcard-body:focus {
-    background: linear-gradient(180deg, rgba(240,136,62,.055), transparent 34%);
-  }
-  .pcard-notes .pcard-body.is-empty::before {
-    content: attr(data-placeholder);
-    color: #6e7681;
-    font-style: italic;
-  }
-  .pcard-notes .pcard-body p { margin: 0 0 .86em 0; }
-  .pcard-notes .pcard-body strong,
-  .pcard-notes .pcard-body b {
-    color: #f0883e;
-    font-weight: 800;
-  }
-  .pcard-notes .pcard-body em { color: #58a6ff; font-style: normal; }
-  .pcard-notes .pcard-body code {
-    font-family: "SF Mono", monospace; font-size: .9em;
-    background: rgba(255,255,255,.08); padding: 1px 6px; border-radius: 4px;
-  }
-  .pcard-notes .empty { color: #484f58; font-style: italic; }
-  .notes-edit-status {
-    font-size: 11px;
-    color: #6e7681;
-    letter-spacing: 0;
-    text-transform: none;
-    font-weight: 600;
-  }
-  .notes-edit-status.is-dirty { color: #f0883e; }
-  .notes-edit-status.is-saved { color: #3fb950; }
-
-  /* Timer card */
-  .pcard-timer { min-height: 204px; }
-  .pcard-timer .pcard-body {
-    display: flex; flex-direction: column; gap: clamp(8px, 1.1vh, 12px);
-    padding: clamp(14px, 1.6vh, 22px) 24px 18px;
-    justify-content: center;
-    overflow: hidden;
-  }
-  .timer-display {
-    font-family: "SF Mono", "JetBrains Mono", monospace;
-    font-size: clamp(42px, 3.65vw, 66px); font-weight: 700;
-    color: #3fb950;
-    letter-spacing: .03em;
-    line-height: .96;
-    white-space: nowrap;
-    flex-shrink: 1;
-  }
-  .timer-row {
-    display: flex; align-items: center; gap: 12px;
-    font-size: 13px; color: #8b949e;
-    flex-shrink: 0;
-  }
-  .timer-row .label { font-size: 10px; letter-spacing: .15em; text-transform: uppercase; color: #6e7681; }
-  .timer-row .val { color: #e6edf3; font-weight: 600; font-family: "SF Mono", monospace; }
-  .timer-controls { display: flex; gap: 8px; flex-wrap: wrap; flex-shrink: 0; }
-  .timer-btn {
-    background: rgba(255,255,255,.06);
-    border: 1px solid rgba(255,255,255,.1);
-    color: #e6edf3;
-    padding: 6px 11px;
-    border-radius: 6px;
-    font-size: 12px;
-    line-height: 1.1;
-    min-height: 30px;
-    cursor: pointer;
-    font-family: inherit;
-  }
-  .timer-btn:hover { background: rgba(88,166,255,.15); border-color: #58a6ff; }
-  .timer-btn:active { transform: translateY(1px); }
-
-  /* Resize handle */
-  .pcard-resize {
-    position: absolute; right: 0; bottom: 0;
-    width: 18px; height: 18px;
-    cursor: nwse-resize;
-    background: linear-gradient(135deg, transparent 50%, rgba(255,255,255,.25) 50%, rgba(255,255,255,.25) 60%, transparent 60%, transparent 70%, rgba(255,255,255,.25) 70%, rgba(255,255,255,.25) 80%, transparent 80%);
-    z-index: 5;
-  }
-  .pcard-resize:hover { background: linear-gradient(135deg, transparent 50%, #58a6ff 50%, #58a6ff 60%, transparent 60%, transparent 70%, #58a6ff 70%, #58a6ff 80%, transparent 80%); }
-
-  /* Bottom hint bar */
-  .hint-bar {
-    position: fixed; bottom: 0; left: 0; right: 0;
-    background: rgba(0,0,0,.6);
-    backdrop-filter: blur(10px);
-    border-top: 1px solid rgba(255,255,255,.08);
-    min-height: 34px;
-    padding: 6px 16px;
-    font-size: 11px; color: #8b949e;
-    display: flex; gap: 18px; align-items: center;
-    z-index: 1000;
-  }
-  .hint-bar kbd {
-    background: rgba(255,255,255,.08);
-    padding: 1px 6px; border-radius: 3px;
-    font-family: "SF Mono", monospace;
-    font-size: 10px;
-    border: 1px solid rgba(255,255,255,.1);
-    color: #e6edf3;
-  }
-  .hint-bar .reset-layout {
-    margin-left: auto;
-    background: transparent; border: 1px solid rgba(255,255,255,.15);
-    color: #8b949e; padding: 3px 10px; border-radius: 4px;
-    font-size: 11px; cursor: pointer; font-family: inherit;
-  }
-  .hint-bar .reset-layout:hover { background: rgba(248,81,73,.15); border-color: #f85149; color: #f85149; }
-
-  body.is-dragging-card * { user-select: none !important; }
-  body.is-dragging-card iframe { pointer-events: none !important; }
-</style>
-</head>
-<body>
-
-<div id="stage">
-  <div class="pcard pcard-preview" id="card-cur" style="--dot-color:#58a6ff">
-    <div class="pcard-head" data-drag>
-      <span class="pcard-dot"></span>
-      <span class="pcard-title">CURRENT</span>
-      <span class="pcard-meta" id="cur-meta">—</span>
-    </div>
-    <div class="pcard-body"><iframe id="iframe-cur"></iframe></div>
-    <div class="pcard-resize" data-resize></div>
-  </div>
-
-  <div class="pcard pcard-preview" id="card-nxt" style="--dot-color:#bc8cff">
-    <div class="pcard-head" data-drag>
-      <span class="pcard-dot"></span>
-      <span class="pcard-title">NEXT</span>
-      <span class="pcard-meta" id="nxt-meta">—</span>
-    </div>
-    <div class="pcard-body"><iframe id="iframe-nxt"></iframe></div>
-    <div class="pcard-resize" data-resize></div>
-  </div>
-
-  <div class="pcard pcard-notes" id="card-notes" style="--dot-color:#f0883e">
-    <div class="pcard-head" data-drag>
-      <span class="pcard-dot"></span>
-      <span class="pcard-title">SPEAKER SCRIPT · 逐字稿</span>
-      <span class="notes-edit-status" id="notes-status">editable</span>
-    </div>
-    <div class="pcard-body" id="notes-body" contenteditable="true" spellcheck="false" data-placeholder="Click here to edit speaker notes."></div>
-    <div class="pcard-resize" data-resize></div>
-  </div>
-
-  <div class="pcard pcard-timer" id="card-timer" style="--dot-color:#3fb950">
-    <div class="pcard-head" data-drag>
-      <span class="pcard-dot"></span>
-      <span class="pcard-title">TIMER</span>
-    </div>
-    <div class="pcard-body">
-      <div class="timer-display" id="timer-display">00:00</div>
-      <div class="timer-row">
-        <span class="label">Slide</span>
-        <span class="val" id="timer-count">1 / ${total}</span>
-      </div>
-      <div class="timer-controls">
-        <button class="timer-btn" id="btn-prev">← Prev</button>
-        <button class="timer-btn" id="btn-next">Next →</button>
-        <button class="timer-btn" id="btn-reset">⏱ Reset</button>
-      </div>
-    </div>
-    <div class="pcard-resize" data-resize></div>
-  </div>
-</div>
-
-<div class="hint-bar">
-  <span><kbd>← →</kbd> 翻页</span>
-  <span><kbd>R</kbd> 重置计时</span>
-  <span><kbd>Esc</kbd> 关闭</span>
-  <span style="color:#6e7681">拖动卡片头部移动 · 拖动右下角调整大小</span>
-  <button class="reset-layout" id="reset-layout">重置布局</button>
-</div>
-
-<script>
-(function(){
-  var slideMeta = ${metaJSON};
-  var total = ${total};
-  var idx = ${startIdx};
-  var deckUrl = ${deckUrlJSON};
-  var STORAGE_KEY = ${JSON.stringify(storageKey)};
-  var NOTES_STORAGE_KEY = ${JSON.stringify(notesStorageKey)};
-  var WINDOW_STORAGE_KEY = ${JSON.stringify(windowStorageKey)};
-  var bc;
-  try { bc = new BroadcastChannel(${channelJSON}); } catch(e) {}
-
-  var iframeCur = document.getElementById('iframe-cur');
-  var iframeNxt = document.getElementById('iframe-nxt');
-  var notesBody = document.getElementById('notes-body');
-  var curMeta = document.getElementById('cur-meta');
-  var nxtMeta = document.getElementById('nxt-meta');
-  var timerDisplay = document.getElementById('timer-display');
-  var timerCount = document.getElementById('timer-count');
-  var notesStatus = document.getElementById('notes-status');
-  var editedNotes = readEditedNotes();
-  var renderNotesLock = false;
-  var saveNotesTimer = 0;
-
-  function readEditedNotes() {
-    try {
-      var saved = localStorage.getItem(NOTES_STORAGE_KEY);
-      return saved ? JSON.parse(saved) : {};
-    } catch(e) {
-      return {};
-    }
-  }
-  function getNoteHtml(n) {
-    return Object.prototype.hasOwnProperty.call(editedNotes, n) ? editedNotes[n] : (slideMeta[n] && slideMeta[n].notes) || '';
-  }
-  function setNotesStatus(text, cls) {
-    if (!notesStatus) return;
-    notesStatus.textContent = text;
-    notesStatus.className = 'notes-edit-status' + (cls ? ' ' + cls : '');
-  }
-  function renderNotes(n) {
-    renderNotesLock = true;
-    var html = getNoteHtml(n);
-    notesBody.innerHTML = html || '';
-    notesBody.classList.toggle('is-empty', !html);
-    setNotesStatus('editable', '');
-    renderNotesLock = false;
-  }
-  function saveCurrentNotes() {
-    if (renderNotesLock) return;
-    var html = notesBody.innerHTML || '';
-    editedNotes[idx] = html;
-    if (slideMeta[idx]) slideMeta[idx].notes = html;
-    notesBody.classList.toggle('is-empty', !html);
-    try { localStorage.setItem(NOTES_STORAGE_KEY, JSON.stringify(editedNotes)); } catch(e) {}
-    if (bc) bc.postMessage({ type: 'notes-update', idx: idx, html: html });
-    setNotesStatus('saved', 'is-saved');
-  }
-  function scheduleNotesSave() {
-    if (renderNotesLock) return;
-    setNotesStatus('editing', 'is-dirty');
-    clearTimeout(saveNotesTimer);
-    saveNotesTimer = setTimeout(saveCurrentNotes, 360);
-  }
-  function normalizeNotesEmphasis() {
-    notesBody.querySelectorAll('b').forEach(function(node){
-      var strong = document.createElement('strong');
-      while (node.firstChild) strong.appendChild(node.firstChild);
-      node.replaceWith(strong);
-    });
-    notesBody.querySelectorAll('span[style]').forEach(function(node){
-      var weight = node.style && node.style.fontWeight;
-      var numeric = parseInt(weight, 10);
-      if (weight === 'bold' || numeric >= 600) {
-        var strong = document.createElement('strong');
-        while (node.firstChild) strong.appendChild(node.firstChild);
-        node.replaceWith(strong);
-      }
-    });
-  }
-  notesBody.addEventListener('keydown', function(e){
-    if ((e.ctrlKey || e.metaKey) && !e.altKey && String(e.key || '').toLowerCase() === 'b') {
-      e.preventDefault();
-      notesBody.focus();
-      try { document.execCommand('bold', false, null); } catch(err) {}
-      normalizeNotesEmphasis();
-      scheduleNotesSave();
-    }
-  });
-  notesBody.addEventListener('input', scheduleNotesSave);
-  notesBody.addEventListener('blur', saveCurrentNotes);
-
-  /* ===== Default card layout ===== */
-  function defaultLayout() {
-    var w = window.innerWidth;
-    var h = window.innerHeight - 34; /* leave room for hint bar */
-    var pad = 6;
-    var gap = 8;
-    var header = 38;
-    var availableW = Math.max(320, w - pad * 2);
-    var availableH = Math.max(480, h - pad * 2);
-    if (availableW < 980) {
-      var oneW = availableW;
-      var timerHSmall = Math.min(230, Math.max(204, availableH * 0.22));
-      var notesMinSmall = Math.min(180, Math.max(110, availableH * 0.22));
-      var previewSpace = Math.max(180, availableH - timerHSmall - notesMinSmall - gap * 3);
-      var curHSmall = Math.min(previewSpace * 0.64, header + oneW / 1.6);
-      var nextHSmall = Math.min(previewSpace - curHSmall, header + oneW / 1.6);
-      var notesHSmall = Math.max(96, availableH - curHSmall - nextHSmall - timerHSmall - gap * 3);
-      return {
-        'card-cur':   { x: pad, y: pad, w: oneW, h: Math.round(curHSmall) },
-        'card-nxt':   { x: pad, y: Math.round(pad + curHSmall + gap), w: oneW, h: Math.round(nextHSmall) },
-        'card-notes': { x: pad, y: Math.round(pad + curHSmall + gap + nextHSmall + gap), w: oneW, h: Math.round(notesHSmall) },
-        'card-timer': { x: pad, y: Math.round(h - pad - timerHSmall), w: oneW, h: Math.round(timerHSmall) }
-      };
-    }
-    var columnW = availableW - gap;
-    var leftW = Math.round(columnW * 0.66);
-    var rightW = columnW - leftW;
-    var timerMinH = Math.min(238, Math.max(204, availableH * 0.21));
-    var curMaxH = Math.max(280, availableH - gap - timerMinH);
-    var curH = Math.min(Math.round(header + leftW / 1.6), curMaxH);
-    curH = Math.max(Math.min(360, curMaxH), curH);
-    var timerH = availableH - curH - gap;
-    var nextH = Math.round(header + rightW / 1.6);
-    nextH = Math.max(260, Math.min(nextH, availableH - gap - 320));
-    var notesH = availableH - nextH - gap;
-    return {
-      'card-cur':   { x: pad, y: pad, w: leftW, h: curH },
-      'card-timer': { x: pad, y: pad + curH + gap, w: leftW, h: timerH },
-      'card-nxt':   { x: pad + leftW + gap, y: pad, w: rightW, h: nextH },
-      'card-notes': { x: pad + leftW + gap, y: pad + nextH + gap, w: rightW, h: notesH }
-    };
-  }
-
-  /* ===== Apply / save / restore layout ===== */
-  function applyLayout(layout) {
-    Object.keys(layout).forEach(function(id){
-      var el = document.getElementById(id);
-      var l = layout[id];
-      if (el && l) {
-        var maxW = Math.max(220, window.innerWidth - 12);
-        var maxH = Math.max(120, window.innerHeight - 46);
-        var ww = Math.max(220, Math.min(l.w, maxW));
-        var hh = Math.max(120, Math.min(l.h, maxH));
-        var xx = Math.max(0, Math.min(l.x, window.innerWidth - ww - 6));
-        var yy = Math.max(0, Math.min(l.y, window.innerHeight - hh - 40));
-        el.style.left = xx + 'px';
-        el.style.top = yy + 'px';
-        el.style.width = ww + 'px';
-        el.style.height = hh + 'px';
-      }
-    });
-    rescaleAll();
-  }
-  function readLayout() {
-    try {
-      var saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) return JSON.parse(saved);
-    } catch(e) {}
-    return defaultLayout();
-  }
-  function saveLayout() {
-    var layout = {};
-    ['card-cur','card-nxt','card-notes','card-timer'].forEach(function(id){
-      var el = document.getElementById(id);
-      if (el) {
-        layout[id] = {
-          x: parseInt(el.style.left,10) || 0,
-          y: parseInt(el.style.top,10) || 0,
-          w: parseInt(el.style.width,10) || 300,
-          h: parseInt(el.style.height,10) || 200
-        };
-      }
-    });
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(layout)); } catch(e) {}
-  }
-
-  /* ===== iframe rescale to fit card body ===== */
-  function rescaleIframe(iframe) {
-    if (!iframe || iframe.style.display === 'none') return;
-    var body = iframe.parentElement;
-    var cw = body.clientWidth, ch = body.clientHeight;
-    if (!cw || !ch) return;
-    var baseW = 1600;
-    var baseH = 1000;
-    var s = Math.max(cw / baseW, ch / baseH) * 1.002;
-    iframe.style.transform = 'scale(' + s + ')';
-    /* Center the scaled iframe in the body */
-    var sw = baseW * s, sh = baseH * s;
-    iframe.style.left = Math.max(0, (cw - sw) / 2) + 'px';
-    iframe.style.top = Math.max(0, (ch - sh) / 2) + 'px';
-  }
-  function rescaleAll() {
-    rescaleIframe(iframeCur);
-    rescaleIframe(iframeNxt);
-  }
-  function readWindowState() {
-    try {
-      var saved = localStorage.getItem(WINDOW_STORAGE_KEY);
-      return saved ? JSON.parse(saved) : null;
-    } catch(e) {
-      return null;
-    }
-  }
-  function saveWindowState() {
-    try {
-      localStorage.setItem(WINDOW_STORAGE_KEY, JSON.stringify({
-        innerW: window.innerWidth,
-        innerH: window.innerHeight,
-        outerW: window.outerWidth || window.innerWidth,
-        outerH: window.outerHeight || window.innerHeight,
-        x: Number.isFinite(window.screenX) ? window.screenX : undefined,
-        y: Number.isFinite(window.screenY) ? window.screenY : undefined,
-        savedAt: Date.now()
-      }));
-    } catch(e) {}
-  }
-  function restoreWindowState() {
-    var state = readWindowState();
-    if (!state) return false;
-    var targetW = Number(state.innerW || state.w);
-    var targetH = Number(state.innerH || state.h);
-    try {
-      if (Number.isFinite(state.x) && Number.isFinite(state.y) && window.moveTo) {
-        window.moveTo(Math.round(state.x), Math.round(state.y));
-      }
-      if (Number.isFinite(targetW) && Number.isFinite(targetH) && window.resizeBy) {
-        var dx = Math.round(targetW - window.innerWidth);
-        var dy = Math.round(targetH - window.innerHeight);
-        if (Math.abs(dx) > 2 || Math.abs(dy) > 2) window.resizeBy(dx, dy);
-      }
-      return true;
-    } catch(e) {
-      return false;
-    }
-  }
-  var windowStateTimer = 0;
-  var layoutResetTimer = 0;
-  function scheduleWindowStateSave() {
-    clearTimeout(windowStateTimer);
-    windowStateTimer = setTimeout(saveWindowState, 150);
-  }
-  function resetLayoutForViewport() {
-    applyLayout(defaultLayout());
-    saveLayout();
-    rescaleAll();
-  }
-  window.addEventListener('resize', function(){
-    scheduleWindowStateSave();
-    clearTimeout(layoutResetTimer);
-    layoutResetTimer = setTimeout(resetLayoutForViewport, 120);
-  });
-  window.addEventListener('beforeunload', function(){
-    saveCurrentNotes();
-    saveWindowState();
-  });
-  setInterval(saveWindowState, 1600);
-
-  /* ===== Drag (move card by header) ===== */
-  document.querySelectorAll('[data-drag]').forEach(function(handle){
-    handle.addEventListener('mousedown', function(e){
-      if (e.button !== 0) return;
-      var card = handle.closest('.pcard');
-      if (!card) return;
-      e.preventDefault();
-      card.classList.add('dragging');
-      document.body.classList.add('is-dragging-card');
-      var startX = e.clientX, startY = e.clientY;
-      var startL = parseInt(card.style.left,10) || 0;
-      var startT = parseInt(card.style.top,10)  || 0;
-      function onMove(ev){
-        var nx = Math.max(0, Math.min(window.innerWidth - 100, startL + ev.clientX - startX));
-        var ny = Math.max(0, Math.min(window.innerHeight - 50, startT + ev.clientY - startY));
-        card.style.left = nx + 'px';
-        card.style.top = ny + 'px';
-      }
-      function onUp(){
-        card.classList.remove('dragging');
-        document.body.classList.remove('is-dragging-card');
-        document.removeEventListener('mousemove', onMove);
-        document.removeEventListener('mouseup', onUp);
-        saveLayout();
-      }
-      document.addEventListener('mousemove', onMove);
-      document.addEventListener('mouseup', onUp);
-    });
-  });
-
-  /* ===== Resize (drag bottom-right corner) ===== */
-  document.querySelectorAll('[data-resize]').forEach(function(handle){
-    handle.addEventListener('mousedown', function(e){
-      if (e.button !== 0) return;
-      var card = handle.closest('.pcard');
-      if (!card) return;
-      e.preventDefault(); e.stopPropagation();
-      card.classList.add('resizing');
-      document.body.classList.add('is-dragging-card');
-      var startX = e.clientX, startY = e.clientY;
-      var startW = parseInt(card.style.width,10)  || card.offsetWidth;
-      var startH = parseInt(card.style.height,10) || card.offsetHeight;
-      function onMove(ev){
-        var nw = Math.max(180, startW + ev.clientX - startX);
-        var nh = Math.max(100, startH + ev.clientY - startY);
-        if (card.classList.contains('pcard-preview')) {
-          nh = Math.max(100, 38 + (nw / 1.6));
-        }
-        card.style.width = nw + 'px';
-        card.style.height = nh + 'px';
-        if (card.querySelector('iframe')) rescaleIframe(card.querySelector('iframe'));
-      }
-      function onUp(){
-        card.classList.remove('resizing');
-        document.body.classList.remove('is-dragging-card');
-        document.removeEventListener('mousemove', onMove);
-        document.removeEventListener('mouseup', onUp);
-        rescaleAll();
-        saveLayout();
-      }
-      document.addEventListener('mousemove', onMove);
-      document.addEventListener('mouseup', onUp);
-    });
-  });
-
-  /* ===== Preview iframe ready tracking =====
-   * Each iframe loads the deck ONCE with ?preview=1 on init. Subsequent
-   * slide changes are sent via postMessage('preview-goto') so the iframe
-   * just toggles visibility of a different .slide — no reload, no flicker.
-   */
-  var iframeReady = { cur: false, nxt: false };
-  var currentTheme = ${themeJSON};
-  window.addEventListener('message', function(e) {
-    if (!e.data || e.data.type !== 'preview-ready') return;
-    var iframe = null;
-    if (e.source === iframeCur.contentWindow) {
-      iframeReady.cur = true;
-      iframe = iframeCur;
-      postPreviewGoto(iframeCur, idx);
-    } else if (e.source === iframeNxt.contentWindow) {
-      iframeReady.nxt = true;
-      iframe = iframeNxt;
-      postPreviewGoto(iframeNxt, idx + 1 < total ? idx + 1 : idx);
-    }
-    /* Sync current theme to the iframe */
-    if (iframe && currentTheme) {
-      try { iframe.contentWindow.postMessage({ type: 'preview-theme', name: currentTheme }, '*'); } catch(err) {}
-    }
-    if (iframe) rescaleIframe(iframe);
-  });
-
-  function postPreviewGoto(iframe, n) {
-    try {
-      iframe.contentWindow.postMessage({ type: 'preview-goto', idx: n }, '*');
-    } catch(e) {}
-  }
-
-  /* ===== Update content =====
-   * Smooth (no-reload) navigation: send postMessage to iframes instead of
-   * resetting src. Iframes stay loaded, just switch visible .slide.
-   */
-  function update(n) {
-    n = Math.max(0, Math.min(total - 1, n));
-    if (n !== idx) saveCurrentNotes();
-    idx = n;
-
-    /* Current preview — postMessage (smooth) */
-    if (iframeReady.cur) postPreviewGoto(iframeCur, n);
-    curMeta.textContent = (n + 1) + '/' + total;
-
-    /* Next preview */
-    if (n + 1 < total) {
-      iframeNxt.style.display = '';
-      var endEl = document.querySelector('#card-nxt .preview-end');
-      if (endEl) endEl.remove();
-      if (iframeReady.nxt) postPreviewGoto(iframeNxt, n + 1);
-      nxtMeta.textContent = (n + 2) + '/' + total;
-    } else {
-      iframeNxt.style.display = 'none';
-      var body = document.querySelector('#card-nxt .pcard-body');
-      if (body && !body.querySelector('.preview-end')) {
-        var end = document.createElement('div');
-        end.className = 'preview-end';
-        end.textContent = '— END OF DECK —';
-        body.appendChild(end);
-      }
-      nxtMeta.textContent = 'END';
-    }
-
-    /* Notes */
-    renderNotes(n);
-
-    /* Timer count */
-    timerCount.textContent = (n + 1) + ' / ' + total;
-  }
-
-  /* ===== Timer ===== */
-  var tStart = Date.now();
-  setInterval(function(){
-    var s = Math.floor((Date.now() - tStart) / 1000);
-    var mm = String(Math.floor(s/60)).padStart(2,'0');
-    var ss = String(s%60).padStart(2,'0');
-    timerDisplay.textContent = mm + ':' + ss;
-  }, 1000);
-  function resetTimer(){ tStart = Date.now(); timerDisplay.textContent = '00:00'; }
-
-  /* ===== BroadcastChannel sync ===== */
-  if (bc) {
-    bc.onmessage = function(e){
-      if (!e.data) return;
-      if (e.data.type === 'go') update(e.data.idx);
-      else if (e.data.type === 'theme' && e.data.name) {
-        currentTheme = e.data.name;
-        /* Forward theme change to preview iframes */
-        [iframeCur, iframeNxt].forEach(function(iframe){
-          try {
-            iframe.contentWindow.postMessage({ type: 'preview-theme', name: e.data.name }, '*');
-          } catch(err) {}
-        });
-      }
-    };
-  }
-  function go(n) {
-    update(n);
-    if (bc) bc.postMessage({ type: 'go', idx: idx });
-  }
-
-  /* ===== Mouse wheel on CURRENT preview to navigate ===== */
-  (function initCurrentSlideWheel(){
-    var body = document.querySelector('#card-cur .pcard-body');
-    if (!body) return;
-    var wheelAccum = 0;
-    var lastWheelAt = 0;
-    var lastWheelNavAt = 0;
-    var WHEEL_THRESHOLD = 55;
-    var WHEEL_COOLDOWN = 320;
-    body.addEventListener('wheel', function(e){
-      if (e.ctrlKey || e.metaKey || e.altKey) return;
-      var now = Date.now();
-      if (now - lastWheelAt > 280) wheelAccum = 0;
-      lastWheelAt = now;
-      var delta = Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
-      if (Math.abs(delta) < 1) return;
-      wheelAccum += delta;
-      e.preventDefault();
-      if (Math.abs(wheelAccum) < WHEEL_THRESHOLD) return;
-      if (now - lastWheelNavAt < WHEEL_COOLDOWN) {
-        wheelAccum = 0;
-        return;
-      }
-      go(idx + (wheelAccum > 0 ? 1 : -1));
-      wheelAccum = 0;
-      lastWheelNavAt = now;
-    }, { passive: false });
-  })();
-
-  /* ===== Buttons ===== */
-  document.getElementById('btn-prev').addEventListener('click', function(){ go(idx - 1); });
-  document.getElementById('btn-next').addEventListener('click', function(){ go(idx + 1); });
-  document.getElementById('btn-reset').addEventListener('click', resetTimer);
-  document.getElementById('reset-layout').addEventListener('click', function(){
-    try { localStorage.removeItem(STORAGE_KEY); } catch(e){}
-    applyLayout(defaultLayout());
-    saveLayout();
-  });
-
-  /* ===== Keyboard ===== */
-  document.addEventListener('keydown', function(e){
-    if (e.metaKey || e.ctrlKey || e.altKey) return;
-    var editing = e.target && e.target.closest && e.target.closest('#notes-body, [contenteditable="true"], textarea, input, select');
-    if (editing) {
-      if (e.key === 'Escape') {
-        editing.blur();
-        e.preventDefault();
-      }
-      return;
-    }
-    switch(e.key) {
-      case 'ArrowRight': case ' ': case 'PageDown': go(idx + 1); e.preventDefault(); break;
-      case 'ArrowLeft':  case 'PageUp':   go(idx - 1); e.preventDefault(); break;
-      case 'Home': go(0); break;
-      case 'End':  go(total - 1); break;
-      case 'r': case 'R': resetTimer(); break;
-      case 'Escape': window.close(); break;
-    }
-  });
-
-  /* ===== Iframe load → rescale (catches initial size) ===== */
-  iframeCur.addEventListener('load', function(){ rescaleIframe(iframeCur); });
-  iframeNxt.addEventListener('load', function(){ rescaleIframe(iframeNxt); });
-
-  /* ===== Init =====
-   * Load each iframe ONCE with the deck file. After they post
-   * 'preview-ready', all subsequent navigation is via postMessage
-   * (smooth, no reload, no flicker).
-   */
-  restoreWindowState();
-  resetLayoutForViewport();
-  setTimeout(resetLayoutForViewport, 180);
-  setTimeout(saveWindowState, 260);
-  iframeCur.src = deckUrl + '?preview=' + (idx + 1);
-  if (idx + 1 < total) iframeNxt.src = deckUrl + '?preview=' + (idx + 2);
-  /* Initialize notes/timer/count without touching iframes */
-  renderNotes(idx);
-  curMeta.textContent = (idx + 1) + '/' + total;
-  nxtMeta.textContent = (idx + 2) + '/' + total;
-  timerCount.textContent = (idx + 1) + ' / ' + total;
-})();
-</` + `script>
-</body></html>`;
-    }
     function fullscreen(){ const el=document.documentElement;
       if (!document.fullscreenElement) el.requestFullscreen&&el.requestFullscreen();
       else document.exitFullscreen&&document.exitFullscreen();
@@ -2247,22 +1702,55 @@
       if (!fromRemote && bc) bc.postMessage({ type: 'theme', name: name });
     }
 
-    // animation cycling on current slide
-    let animIdx = 0;
-    function cycleAnim(){
-      animIdx = (animIdx+1) % ANIMS.length;
-      const a = ANIMS[animIdx];
-      const target = slides[idx].querySelector('[data-anim-target]') || slides[idx];
-      ANIMS.forEach(x => target.classList.remove('anim-'+x));
-      void target.offsetWidth;
-      target.classList.add('anim-'+a);
-      target.setAttribute('data-anim', a);
-      const ind = document.querySelector('.anim-indicator');
-      if (ind) ind.textContent = a;
+    function initHtmlPptPresenter() {
+      if (!window.HtmlPptPresenter || htmlPptPresenter) return;
+      htmlPptPresenter = window.HtmlPptPresenter.create({
+        total: total,
+        getIdx: () => idx,
+        go: (n) => go(n),
+        getDeckBaseUrl: getDeckBaseUrl,
+        bc: bc,
+        getSlideTitle: getSlideTitle,
+        getSlideNotes: getSlideNotes,
+        getSlideId: getSlideId,
+        getSpeakerNotesCatalog: getSpeakerNotesCatalog,
+        getTheme: () => root.getAttribute('data-theme') || (themes[themeIdx] || ''),
+        getPresentationStart: () => presentationStartMs,
+        setPresentationStart: (ms) => { presentationStartMs = ms; },
+        sessionId: 'deck-' + location.pathname.replace(/\W+/g, '-')
+      });
+    }
+    loadPresenterAssets(initHtmlPptPresenter);
+
+    function isPresenterTypingTarget(e) {
+      if (!(htmlPptPresenter && htmlPptPresenter.isActive())) return false;
+      const target = e && e.target && e.target.closest
+        ? e.target.closest('input, textarea, select, [contenteditable="true"], .hpp-note-editor')
+        : null;
+      return !!target;
     }
 
     document.addEventListener('keydown', function (e) {
       if (shouldBlockDeckNavigationForEditor(e)) return;
+      if (htmlPptPresenter && htmlPptPresenter.isActive()) {
+        if (isPresenterTypingTarget(e)) return;
+        if (htmlPptPresenter.handleKey(e)) return;
+        if (e.metaKey || e.ctrlKey || e.altKey) return;
+        if (e.key === 'f' || e.key === 'F') { fullscreen(); return; }
+        if (e.key === 't' || e.key === 'T') {
+          cycleTheme();
+          if (htmlPptPresenter.syncTheme) htmlPptPresenter.syncTheme();
+          else if (htmlPptPresenter.syncPreviewTheme) htmlPptPresenter.syncPreviewTheme();
+          return;
+        }
+        if (e.key === 'o' || e.key === 'O' || e.key === 'e' || e.key === 'E') {
+          htmlPptPresenter.toggleOverview();
+          e.preventDefault();
+          return;
+        }
+        return;
+      }
+      if (htmlPptPresenter && htmlPptPresenter.handleKey(e)) return;
       if (e.metaKey||e.ctrlKey||e.altKey) return;
       switch (e.key) {
         case 'ArrowRight': case ' ': case 'PageDown': case 'Enter': go(idx+1); e.preventDefault(); break;
@@ -2270,12 +1758,10 @@
         case 'Home': go(0); break;
         case 'End': go(total-1); break;
         case 'f': case 'F': fullscreen(); break;
-        case 's': case 'S': openPresenterWindow(); break;
         case 'n': case 'N': toggleNotes(); break;
         case 'o': case 'O': toggleOverview(); e.preventDefault(); break;
         case 'e': case 'E': togglePageNavigator(); e.preventDefault(); break;
         case 't': case 'T': cycleTheme(); break;
-        case 'a': case 'A': cycleAnim(); break;
         case 'Escape': togglePageNavigator(false); toggleOverview(false); toggleNotes(false); break;
       }
     });

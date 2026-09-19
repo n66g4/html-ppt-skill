@@ -15,7 +15,7 @@
 | 单页布局 | 31 | `templates/single-page/*.html` |
 | CSS 动画 | 27 | `assets/animations/animations.css` |
 | Canvas FX | 20 | `assets/animations/fx/*.js` |
-| 演讲者模式 | — | `S` 键 / `?presenter=1` |
+| 演讲者模式 | — | `P` 键（同时打开 `?audience=1` 观众屏） |
 | 交互式编辑 | — | `V` 键 / `assets/editor.js` |
 
 ## 核心特性
