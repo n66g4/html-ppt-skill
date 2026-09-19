@@ -30,7 +30,7 @@ function assert(condition, message) {
 }
 
 async function main() {
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'knight-editor-test-'));
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'html-ppt-editor-test-'));
   const htmlPath = path.join(tmp, 'index.html');
   fs.writeFileSync(htmlPath, `<!doctype html>
 <html lang="zh-CN" data-theme="corporate-clean" data-themes="corporate-clean" data-theme-base="${pathToFileURL(path.join(root, 'assets', 'themes')).href}/">
@@ -93,15 +93,15 @@ async function main() {
   });
 
   await page.goto(pathToFileURL(htmlPath).href);
-  await page.waitForFunction(() => window.KnightDeckEditor && typeof window.KnightDeckEditor.enter === 'function', null, { timeout: 5000 });
+  await page.waitForFunction(() => window.HtmlPptDeckEditor && typeof window.HtmlPptDeckEditor.enter === 'function', null, { timeout: 5000 });
 
   await page.keyboard.press('v');
-  assert(await page.evaluate(() => document.body.classList.contains('knight-editor-active')), 'V should enter editor mode');
-  assert(await page.locator('.knight-editor-toolbar').isVisible(), 'toolbar should be visible in editor mode');
+  assert(await page.evaluate(() => document.body.classList.contains('html-ppt-editor-active')), 'V should enter editor mode');
+  assert(await page.locator('.html-ppt-editor-toolbar').isVisible(), 'toolbar should be visible in editor mode');
   const toolbarTextFit = await page.evaluate(() => {
-    const toolbar = document.querySelector('.knight-editor-toolbar');
+    const toolbar = document.querySelector('.html-ppt-editor-toolbar');
     const before = getComputedStyle(toolbar, '::before');
-    const status = document.querySelector('.knight-editor-status');
+    const status = document.querySelector('.html-ppt-editor-status');
     return {
       beforeWhiteSpace: before.whiteSpace,
       beforeFlexShrink: before.flexShrink,
@@ -126,7 +126,7 @@ async function main() {
   assert(await page.evaluate(() => document.querySelectorAll('.slide')[0].classList.contains('is-active')), 'mouse wheel should navigate while editor is active but not editing text');
 
   await page.click('#lede');
-  assert(await page.evaluate(() => document.querySelector('#lede').hasAttribute('data-knight-edit-selected')), 'click should select lede text');
+  assert(await page.evaluate(() => document.querySelector('#lede').hasAttribute('data-html-ppt-edit-selected')), 'click should select lede text');
 
   await page.dblclick('#partial-text');
   await page.evaluate(() => {
@@ -216,8 +216,8 @@ async function main() {
   const blockUnboldByShortcut = await page.evaluate(() => document.querySelector('#lede').style.fontWeight);
   assert(blockUnboldByShortcut === '400' || blockUnboldByShortcut === 'normal' || Number(blockUnboldByShortcut) < 700, 'Ctrl+B should remove whole-element bold when pressed again');
 
-  await page.fill('.knight-editor-font-size', '44');
-  await page.dispatchEvent('.knight-editor-font-size', 'change');
+  await page.fill('.html-ppt-editor-font-size', '44');
+  await page.dispatchEvent('.html-ppt-editor-font-size', 'change');
   await page.click('[data-editor-command="bold"]');
   await page.click('[data-editor-align="center"]');
   const styled = await page.evaluate(() => {
@@ -240,13 +240,13 @@ async function main() {
   assert(afterRedo === 'center', 'Ctrl+Y should redo the last style command');
 
   await page.click('#lede');
-  await page.click('.knight-editor-color-button');
-  assert(await page.locator('.knight-editor-color-menu.is-open').isVisible(), 'color button should open the lightweight color palette');
-  assert(await page.locator('.knight-editor-color-custom input[type="color"]').count() === 1, 'color palette should keep one custom color entry');
+  await page.click('.html-ppt-editor-color-button');
+  assert(await page.locator('.html-ppt-editor-color-menu.is-open').isVisible(), 'color button should open the lightweight color palette');
+  assert(await page.locator('.html-ppt-editor-color-custom input[type="color"]').count() === 1, 'color palette should keep one custom color entry');
   await page.click('[data-editor-color="#2563eb"]');
   const selectedColor = await page.evaluate(() => ({
     color: getComputedStyle(document.querySelector('#lede')).color,
-    menuOpen: document.querySelector('.knight-editor-color-menu').classList.contains('is-open')
+    menuOpen: document.querySelector('.html-ppt-editor-color-menu').classList.contains('is-open')
   }));
   assert(selectedColor.color === 'rgb(37, 99, 235)', 'palette swatch should apply the selected common color');
   assert(!selectedColor.menuOpen, 'palette should close after picking a common color');
@@ -294,7 +294,7 @@ async function main() {
   const cardForResize = await page.locator('#card').boundingBox();
   await page.mouse.click(cardForResize.x + 8, cardForResize.y + 8);
   const cardWidthBefore = await page.evaluate(() => document.querySelector('#card').getBoundingClientRect().width);
-  const handle = await page.locator('.knight-editor-handle[data-handle="se"]').boundingBox();
+  const handle = await page.locator('.html-ppt-editor-handle[data-handle="se"]').boundingBox();
   await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
   await page.mouse.down();
   await page.mouse.move(handle.x + 74, handle.y + 44, { steps: 4 });
@@ -323,21 +323,21 @@ async function main() {
     style.textContent = '.page-navigator{display:block}';
     document.head.appendChild(style);
   });
-  await page.evaluate(() => window.KnightDeckEditor.save());
+  await page.evaluate(() => window.HtmlPptDeckEditor.save());
   const saved = await page.evaluate(() => window.__savedChunks.join(''));
   assert(saved.includes('编辑后的说明'), 'saved HTML should include edited text');
-  assert(saved.includes('data-knight-flow-placeholder-for'), 'saved HTML should keep invisible flow placeholders for moved flow elements');
+  assert(saved.includes('data-html-ppt-flow-placeholder-for'), 'saved HTML should keep invisible flow placeholders for moved flow elements');
   assert(!saved.includes('127.0.0.1'), 'saved HTML should not include local runtime asset URLs');
   assert(!saved.includes('data-page-navigator-style'), 'saved HTML should not include generated page navigator style');
-  assert(!saved.includes('knight-editor-toolbar'), 'saved HTML should not include editor toolbar UI');
-  assert(!saved.includes('data-knight-edit-selected'), 'saved HTML should not include transient selection markers');
+  assert(!saved.includes('html-ppt-editor-toolbar'), 'saved HTML should not include editor toolbar UI');
+  assert(!saved.includes('data-html-ppt-edit-selected'), 'saved HTML should not include transient selection markers');
   const firstSaveStats = await page.evaluate(() => ({ pickers: window.__savePickerCount, writes: window.__writeCount }));
   assert(firstSaveStats.pickers === 1, 'first save should ask for a file handle exactly once');
   assert(firstSaveStats.writes === 1, 'first save should write once');
 
   await page.click('#title');
-  await page.fill('.knight-editor-font-size', '48');
-  await page.dispatchEvent('.knight-editor-font-size', 'change');
+  await page.fill('.html-ppt-editor-font-size', '48');
+  await page.dispatchEvent('.html-ppt-editor-font-size', 'change');
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+S' : 'Control+S');
   await page.waitForFunction(() => window.__writeCount === 2);
   const secondSaveStats = await page.evaluate(() => ({ pickers: window.__savePickerCount, writes: window.__writeCount }));

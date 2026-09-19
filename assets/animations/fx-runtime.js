@@ -1,4 +1,4 @@
-/* knight-html-ppt-skill :: fx-runtime.js
+/* html-ppt-skill :: fx-runtime.js
  * Canvas FX autoloader + lifecycle manager.
  * - Dynamically loads all fx modules listed in FX_LIST
  * - Initializes [data-fx] elements when their slide becomes active

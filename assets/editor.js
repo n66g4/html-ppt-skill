@@ -1,8 +1,8 @@
-/* knight-html-ppt-skill :: editor.js */
+/* html-ppt-skill :: editor.js */
 (function () {
   'use strict';
 
-  if (window.KnightDeckEditor) return;
+  if (window.HtmlPptDeckEditor) return;
   if (/[?&](preview|presenter)=/.test(location.search || '')) return;
 
   const deck = document.querySelector('.deck');
@@ -24,7 +24,7 @@
   };
 
   const EXCLUDED_SELECTOR = [
-    '.knight-editor-ui',
+    '.html-ppt-editor-ui',
     '.deck-footer',
     '.slide-number',
     '.notes',
@@ -39,7 +39,7 @@
     'script',
     'style',
     'link',
-    '[data-knight-flow-placeholder-for]',
+    '[data-html-ppt-flow-placeholder-for]',
     '[data-edit-lock="true"]'
   ].join(',');
 
@@ -106,9 +106,9 @@
     ['紫色', '#8b5cf6']
   ];
 
-  const draftKey = 'knight-html-ppt-editor-draft:v1:' + location.pathname;
+  const draftKey = 'html-ppt-editor-draft:v1:' + location.pathname;
   const fileHandleKey = 'file-handle:' + location.pathname;
-  const HANDLE_DB = 'knight-html-ppt-editor';
+  const HANDLE_DB = 'html-ppt-editor';
   const HANDLE_STORE = 'file-handles';
 
   const ui = buildUI();
@@ -120,7 +120,7 @@
   updateToolbarState();
   maybeOfferDraftRestore();
 
-  window.KnightDeckEditor = {
+  window.HtmlPptDeckEditor = {
     enter,
     exit,
     save,
@@ -137,62 +137,62 @@
 
   function buildUI() {
     const toolbar = document.createElement('div');
-    toolbar.className = 'knight-editor-toolbar knight-editor-ui';
+    toolbar.className = 'html-ppt-editor-toolbar html-ppt-editor-ui';
     toolbar.setAttribute('data-wheel-ignore', 'true');
     const colorSwatches = COLOR_SWATCHES.map(([name, value]) => [
-      '<button class="knight-editor-color-swatch" data-editor-color="', value,
+      '<button class="html-ppt-editor-color-swatch" data-editor-color="', value,
       '" type="button" title="', name,
       '" style="--swatch:', value, '"><span>', name, '</span></button>'
     ].join('')).join('');
     toolbar.innerHTML = [
-      '<button class="knight-editor-button knight-editor-primary" data-editor-action="save" type="button" title="保存 Ctrl+S">保存</button>',
-      '<button class="knight-editor-button" data-editor-action="undo" type="button" title="撤销 Ctrl+Z">↶</button>',
-      '<button class="knight-editor-button" data-editor-action="redo" type="button" title="重做 Ctrl+Y">↷</button>',
-      '<span class="knight-editor-separator" aria-hidden="true"></span>',
-      '<button class="knight-editor-button" data-editor-command="bold" type="button" title="加粗">B</button>',
-      '<label class="knight-editor-field">字号 <input class="knight-editor-font-size" type="number" min="10" max="180" step="1" value="32"></label>',
-      '<div class="knight-editor-color-group">',
-      '<button class="knight-editor-color-button" data-editor-action="color-menu" type="button" title="文字颜色">',
-      '<span>颜色</span><i class="knight-editor-current-color" aria-hidden="true"></i>',
+      '<button class="html-ppt-editor-button html-ppt-editor-primary" data-editor-action="save" type="button" title="保存 Ctrl+S">保存</button>',
+      '<button class="html-ppt-editor-button" data-editor-action="undo" type="button" title="撤销 Ctrl+Z">↶</button>',
+      '<button class="html-ppt-editor-button" data-editor-action="redo" type="button" title="重做 Ctrl+Y">↷</button>',
+      '<span class="html-ppt-editor-separator" aria-hidden="true"></span>',
+      '<button class="html-ppt-editor-button" data-editor-command="bold" type="button" title="加粗">B</button>',
+      '<label class="html-ppt-editor-field">字号 <input class="html-ppt-editor-font-size" type="number" min="10" max="180" step="1" value="32"></label>',
+      '<div class="html-ppt-editor-color-group">',
+      '<button class="html-ppt-editor-color-button" data-editor-action="color-menu" type="button" title="文字颜色">',
+      '<span>颜色</span><i class="html-ppt-editor-current-color" aria-hidden="true"></i>',
       '</button>',
-      '<div class="knight-editor-color-menu" role="menu" aria-label="文字颜色">',
-      '<div class="knight-editor-color-title">常用颜色</div>',
-      '<div class="knight-editor-color-grid">', colorSwatches, '</div>',
-      '<label class="knight-editor-color-custom">自定义 <input class="knight-editor-color" type="color" value="#111216"></label>',
+      '<div class="html-ppt-editor-color-menu" role="menu" aria-label="文字颜色">',
+      '<div class="html-ppt-editor-color-title">常用颜色</div>',
+      '<div class="html-ppt-editor-color-grid">', colorSwatches, '</div>',
+      '<label class="html-ppt-editor-color-custom">自定义 <input class="html-ppt-editor-color" type="color" value="#111216"></label>',
       '</div>',
       '</div>',
-      '<span class="knight-editor-separator" aria-hidden="true"></span>',
-      '<button class="knight-editor-button" data-editor-align="left" type="button" title="左对齐">左</button>',
-      '<button class="knight-editor-button" data-editor-align="center" type="button" title="居中">中</button>',
-      '<button class="knight-editor-button" data-editor-align="right" type="button" title="右对齐">右</button>',
-      '<span class="knight-editor-separator" aria-hidden="true"></span>',
-      '<span class="knight-editor-status">按 V 进入编辑，Esc 退出</span>'
+      '<span class="html-ppt-editor-separator" aria-hidden="true"></span>',
+      '<button class="html-ppt-editor-button" data-editor-align="left" type="button" title="左对齐">左</button>',
+      '<button class="html-ppt-editor-button" data-editor-align="center" type="button" title="居中">中</button>',
+      '<button class="html-ppt-editor-button" data-editor-align="right" type="button" title="右对齐">右</button>',
+      '<span class="html-ppt-editor-separator" aria-hidden="true"></span>',
+      '<span class="html-ppt-editor-status">按 V 进入编辑，Esc 退出</span>'
     ].join('');
 
     const selection = document.createElement('div');
-    selection.className = 'knight-editor-selection knight-editor-ui';
+    selection.className = 'html-ppt-editor-selection html-ppt-editor-ui';
     selection.setAttribute('data-wheel-ignore', 'true');
     ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'].forEach(handle => {
       const node = document.createElement('span');
-      node.className = 'knight-editor-handle';
+      node.className = 'html-ppt-editor-handle';
       node.setAttribute('data-handle', handle);
       selection.appendChild(node);
     });
 
     const toast = document.createElement('div');
-    toast.className = 'knight-editor-toast knight-editor-ui';
+    toast.className = 'html-ppt-editor-toast html-ppt-editor-ui';
 
     const modalBackdrop = document.createElement('div');
-    modalBackdrop.className = 'knight-editor-modal-backdrop knight-editor-ui';
+    modalBackdrop.className = 'html-ppt-editor-modal-backdrop html-ppt-editor-ui';
     modalBackdrop.setAttribute('data-wheel-ignore', 'true');
     modalBackdrop.innerHTML = [
-      '<div class="knight-editor-modal" role="dialog" aria-modal="true" aria-labelledby="knight-editor-exit-title">',
-      '<h2 id="knight-editor-exit-title">保存本次编辑？</h2>',
+      '<div class="html-ppt-editor-modal" role="dialog" aria-modal="true" aria-labelledby="html-ppt-editor-exit-title">',
+      '<h2 id="html-ppt-editor-exit-title">保存本次编辑？</h2>',
       '<p>当前页面有未保存修改。保存会优先写出 HTML 文件；如果浏览器不支持，会自动下载一份新 HTML。</p>',
-      '<div class="knight-editor-modal-actions">',
-      '<button class="knight-editor-button" data-modal-action="discard" type="button">不保存</button>',
-      '<button class="knight-editor-button" data-modal-action="cancel" type="button">继续编辑</button>',
-      '<button class="knight-editor-button knight-editor-primary" data-modal-action="save" type="button">保存并退出</button>',
+      '<div class="html-ppt-editor-modal-actions">',
+      '<button class="html-ppt-editor-button" data-modal-action="discard" type="button">不保存</button>',
+      '<button class="html-ppt-editor-button" data-modal-action="cancel" type="button">继续编辑</button>',
+      '<button class="html-ppt-editor-button html-ppt-editor-primary" data-modal-action="save" type="button">保存并退出</button>',
       '</div>',
       '</div>'
     ].join('');
@@ -200,15 +200,15 @@
     toolbar.addEventListener('pointerdown', stopUIEvent);
     toolbar.addEventListener('mousedown', stopUIEvent);
     toolbar.addEventListener('click', onToolbarClick);
-    toolbar.querySelector('.knight-editor-font-size').addEventListener('change', onFontSizeChange);
-    toolbar.querySelector('.knight-editor-font-size').addEventListener('keydown', event => {
+    toolbar.querySelector('.html-ppt-editor-font-size').addEventListener('change', onFontSizeChange);
+    toolbar.querySelector('.html-ppt-editor-font-size').addEventListener('keydown', event => {
       if (event.key === 'Enter') {
         event.preventDefault();
         onFontSizeChange();
       }
     });
-    toolbar.querySelector('.knight-editor-color').addEventListener('input', onColorChange);
-    toolbar.querySelector('.knight-editor-color').addEventListener('change', closeColorMenu);
+    toolbar.querySelector('.html-ppt-editor-color').addEventListener('input', onColorChange);
+    toolbar.querySelector('.html-ppt-editor-color').addEventListener('change', closeColorMenu);
     modalBackdrop.addEventListener('pointerdown', stopUIEvent);
     modalBackdrop.addEventListener('click', onModalClick);
 
@@ -217,11 +217,11 @@
       selection,
       toast,
       modalBackdrop,
-      status: toolbar.querySelector('.knight-editor-status'),
-      sizeInput: toolbar.querySelector('.knight-editor-font-size'),
-      colorInput: toolbar.querySelector('.knight-editor-color'),
-      colorButton: toolbar.querySelector('.knight-editor-color-button'),
-      colorMenu: toolbar.querySelector('.knight-editor-color-menu'),
+      status: toolbar.querySelector('.html-ppt-editor-status'),
+      sizeInput: toolbar.querySelector('.html-ppt-editor-font-size'),
+      colorInput: toolbar.querySelector('.html-ppt-editor-color'),
+      colorButton: toolbar.querySelector('.html-ppt-editor-color-button'),
+      colorMenu: toolbar.querySelector('.html-ppt-editor-color-menu'),
       undoButton: toolbar.querySelector('[data-editor-action="undo"]'),
       redoButton: toolbar.querySelector('[data-editor-action="redo"]')
     };
@@ -332,7 +332,7 @@
   function enter() {
     if (state.active) return;
     state.active = true;
-    document.body.classList.add('knight-editor-active');
+    document.body.classList.add('html-ppt-editor-active');
     setStatus('点击选择 · 拖动移动 · 双击改字');
     showToast('已进入编辑模式。按 Esc 退出，Ctrl+Z 撤销。');
     syncSelectionBox();
@@ -347,7 +347,7 @@
     finishTextEdit();
     clearSelection();
     state.active = false;
-    document.body.classList.remove('knight-editor-active');
+    document.body.classList.remove('html-ppt-editor-active');
     setStatus(state.dirty ? '有未保存修改' : '已退出编辑模式', state.dirty ? 'dirty' : '');
     return true;
   }
@@ -395,10 +395,10 @@
 
   function onPointerDown(event) {
     if (!state.active) return;
-    if (isColorMenuOpen() && event.target.closest && !event.target.closest('.knight-editor-color-group')) {
+    if (isColorMenuOpen() && event.target.closest && !event.target.closest('.html-ppt-editor-color-group')) {
       closeColorMenu();
     }
-    const handle = event.target.closest && event.target.closest('.knight-editor-handle');
+    const handle = event.target.closest && event.target.closest('.html-ppt-editor-handle');
     if (handle && state.selected) {
       startResize(event, handle.getAttribute('data-handle'));
       event.preventDefault();
@@ -406,7 +406,7 @@
       return;
     }
 
-    if (event.target.closest && event.target.closest('.knight-editor-ui')) return;
+    if (event.target.closest && event.target.closest('.html-ppt-editor-ui')) return;
 
     if (state.editingText && event.target.closest('[contenteditable="true"]')) {
       event.stopPropagation();
@@ -430,7 +430,7 @@
 
   function onDoubleClick(event) {
     if (!state.active) return;
-    if (event.target.closest && event.target.closest('.knight-editor-ui')) return;
+    if (event.target.closest && event.target.closest('.html-ppt-editor-ui')) return;
     const editable = findEditableElement(event.target);
     if (!editable || !isTextEditable(editable)) return;
     selectElement(editable);
@@ -442,7 +442,7 @@
   function findEditableElement(target) {
     let node = target && target.nodeType === 1 ? target : target && target.parentElement;
     if (!node || !node.closest) return null;
-    if (node.closest('.knight-editor-ui')) return null;
+    if (node.closest('.html-ppt-editor-ui')) return null;
     const slide = node.closest('.slide');
     if (!slide || !slide.classList.contains('is-active')) return null;
 
@@ -468,27 +468,27 @@
       return;
     }
     finishTextEdit();
-    if (state.selected) state.selected.removeAttribute('data-knight-edit-selected');
+    if (state.selected) state.selected.removeAttribute('data-html-ppt-edit-selected');
     state.selected = el;
     ensureEditId(el);
-    el.setAttribute('data-knight-edit-selected', 'true');
-    document.body.classList.add('knight-editor-has-selection');
+    el.setAttribute('data-html-ppt-edit-selected', 'true');
+    document.body.classList.add('html-ppt-editor-has-selection');
     syncToolbarFromSelection();
     syncSelectionBox();
   }
 
   function clearSelection() {
     finishTextEdit();
-    if (state.selected) state.selected.removeAttribute('data-knight-edit-selected');
+    if (state.selected) state.selected.removeAttribute('data-html-ppt-edit-selected');
     state.selected = null;
-    document.body.classList.remove('knight-editor-has-selection');
+    document.body.classList.remove('html-ppt-editor-has-selection');
     ui.selection.classList.remove('is-visible');
     syncToolbarFromSelection();
   }
 
   function ensureEditId(el) {
-    if (!el.hasAttribute('data-knight-edit-id')) {
-      el.setAttribute('data-knight-edit-id', 'e' + state.idSeq++);
+    if (!el.hasAttribute('data-html-ppt-edit-id')) {
+      el.setAttribute('data-html-ppt-edit-id', 'e' + state.idSeq++);
     }
   }
 
@@ -602,8 +602,8 @@
     if (findFlowPlaceholder(el)) return;
 
     const placeholder = createFlowPlaceholderElement(el);
-    placeholder.className = 'knight-editor-flow-placeholder';
-    placeholder.setAttribute('data-knight-flow-placeholder-for', ensureFlowId(el));
+    placeholder.className = 'html-ppt-editor-flow-placeholder';
+    placeholder.setAttribute('data-html-ppt-flow-placeholder-for', ensureFlowId(el));
     placeholder.setAttribute('data-edit-lock', 'true');
     placeholder.setAttribute('aria-hidden', 'true');
     placeholder.setAttribute('role', 'presentation');
@@ -612,19 +612,19 @@
   }
 
   function ensureFlowId(el) {
-    let id = el.getAttribute('data-knight-flow-id');
+    let id = el.getAttribute('data-html-ppt-flow-id');
     if (!id) {
       id = 'f' + Date.now().toString(36) + '-' + state.idSeq++;
-      el.setAttribute('data-knight-flow-id', id);
+      el.setAttribute('data-html-ppt-flow-id', id);
     }
     return id;
   }
 
   function findFlowPlaceholder(el) {
-    const id = el.getAttribute('data-knight-flow-id');
+    const id = el.getAttribute('data-html-ppt-flow-id');
     if (!id || !el.parentElement) return null;
     return Array.from(el.parentElement.children)
-      .find(child => child.getAttribute('data-knight-flow-placeholder-for') === id) || null;
+      .find(child => child.getAttribute('data-html-ppt-flow-placeholder-for') === id) || null;
   }
 
   function createFlowPlaceholderElement(el) {
@@ -741,7 +741,7 @@
     state.editingText = el;
     el.setAttribute('contenteditable', 'true');
     el.setAttribute('spellcheck', 'false');
-    el.setAttribute('data-knight-editing-text', 'true');
+    el.setAttribute('data-html-ppt-editing-text', 'true');
     state.savedTextRange = null;
     el.addEventListener('paste', onPlainTextPaste);
     el.addEventListener('input', onTextInput);
@@ -757,7 +757,7 @@
     el.removeEventListener('input', onTextInput);
     el.removeAttribute('contenteditable');
     el.removeAttribute('spellcheck');
-    el.removeAttribute('data-knight-editing-text');
+    el.removeAttribute('data-html-ppt-editing-text');
     state.editingText = null;
     state.savedTextRange = null;
     recordState();
@@ -1022,7 +1022,7 @@
   function syncToolbarFromSelection() {
     const el = state.selected;
     const has = !!el;
-    ui.toolbar.querySelectorAll('[data-editor-command], [data-editor-align], .knight-editor-font-size, .knight-editor-color-button, .knight-editor-color')
+    ui.toolbar.querySelectorAll('[data-editor-command], [data-editor-align], .html-ppt-editor-font-size, .html-ppt-editor-color-button, .html-ppt-editor-color')
       .forEach(control => { control.disabled = !has; });
     if (!has) {
       closeColorMenu();
@@ -1318,13 +1318,13 @@
 
   function serializeDocument() {
     const clone = document.documentElement.cloneNode(true);
-    clone.classList.remove('knight-editor-active', 'knight-editor-has-selection');
+    clone.classList.remove('html-ppt-editor-active', 'html-ppt-editor-has-selection');
     const body = clone.querySelector('body');
-    if (body) body.classList.remove('knight-editor-active', 'knight-editor-has-selection');
+    if (body) body.classList.remove('html-ppt-editor-active', 'html-ppt-editor-has-selection');
 
     clone.querySelectorAll([
-      '.knight-editor-ui',
-      '[data-knight-editor-asset]',
+      '.html-ppt-editor-ui',
+      '[data-html-ppt-editor-asset]',
       '.progress-bar',
       '.notes-overlay',
       '.overview',
@@ -1342,11 +1342,11 @@
   }
 
   function scrubTransient(root) {
-    root.querySelectorAll('[data-knight-edit-id], [data-knight-edit-selected], [data-knight-editing-text], [contenteditable]')
+    root.querySelectorAll('[data-html-ppt-edit-id], [data-html-ppt-edit-selected], [data-html-ppt-editing-text], [contenteditable]')
       .forEach(node => {
-        node.removeAttribute('data-knight-edit-id');
-        node.removeAttribute('data-knight-edit-selected');
-        node.removeAttribute('data-knight-editing-text');
+        node.removeAttribute('data-html-ppt-edit-id');
+        node.removeAttribute('data-html-ppt-edit-selected');
+        node.removeAttribute('data-html-ppt-editing-text');
         node.removeAttribute('contenteditable');
         node.removeAttribute('spellcheck');
       });

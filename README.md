@@ -1,4 +1,4 @@
-# knight-html-ppt-skill
+# html-ppt-skill
 > 一款高质量的 AgentSkill，让 AI 做出真正能打的 HTML 演示文稿。
 > **36 套主题**、**15 套完整 deck 模板**、**31 种页面布局**、**47 个动效**
 > (27 个 CSS + 20 个 Canvas FX)，加上产品级 **演讲者模式** —— 自适应
@@ -30,7 +30,7 @@
 
 ## 产品定位
 
-`knight-html-ppt-skill` 是一个“HTML 演示稿生产基座”：
+`html-ppt-skill` 是一个“HTML 演示稿生产基座”：
 
 - 用静态 HTML/CSS/JS 交付，可直接在浏览器中打开和演示。
 - 默认适配正式汇报，强调清晰、稳重、数据生动和页面不溢出。
@@ -214,7 +214,7 @@ chart-pie · chart-radar · arch-diagram · process-steps · cta · thanks
 手动 / 安装到支持 Agent Skills 的环境 / git clone 后：
 
 ```bash
-npx skills add https://github.com/knight6669/knight-html-ppt-skill
+npx skills add https://github.com/n66g4/html-ppt-skill
 ```
 
 从模板创建一份演示稿：
@@ -245,7 +245,7 @@ Start-Process .\examples\my-report\index.html
 ## 目录结构
 
 ```
-knight-html-ppt-skill/
+html-ppt-skill/
 ├── SKILL.md                      agent 入口
 ├── README.md                     英文 README
 ├── README.zh-CN.md               本文件
@@ -306,7 +306,3 @@ knight-html-ppt-skill/
 本项目基于 [lewislulu/html-ppt-skill](https://github.com/lewislulu/html-ppt-skill) 的 MIT 许可代码与设计体系进行扩展。README 中的部分预览图来自上游项目的 `docs/readme/` 目录，用于说明继承能力。  
 
 请在发布仓库时保留原项目许可和致谢信息。本项目新增部分默认按 MIT License 发布，除非你在仓库中另行声明。
-
-## 关于作者
-
-Knight | 贺 | 持续探索 vibe-coding

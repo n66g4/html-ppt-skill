@@ -1,4 +1,4 @@
-/* knight-html-ppt-skill :: runtime.js
+/* html-ppt-skill :: runtime.js
  * Keyboard-driven deck runtime. Zero dependencies.
  *
  * Features:
@@ -29,28 +29,28 @@
   function ready(fn){ if(document.readyState!='loading')fn(); else document.addEventListener('DOMContentLoaded',fn);}
 
   function loadDeckEditorAssets() {
-    if (window.KnightDeckEditor || window.__knightDeckEditorLoading) return;
+    if (window.HtmlPptDeckEditor || window.__htmlPptDeckEditorLoading) return;
     if (getPreviewIdx() >= 0 || getQueryParam('presenter') === '1') return;
     if (window.matchMedia && window.matchMedia('print').matches) return;
 
     const src = runtimeScript && runtimeScript.getAttribute('src');
     const base = src && src.indexOf('/') >= 0 ? src.slice(0, src.lastIndexOf('/') + 1) : 'assets/';
-    window.__knightDeckEditorLoading = true;
+    window.__htmlPptDeckEditorLoading = true;
 
-    if (!document.querySelector('link[data-knight-editor-asset="css"]')) {
+    if (!document.querySelector('link[data-html-ppt-editor-asset="css"]')) {
       const link = document.createElement('link');
       link.rel = 'stylesheet';
       link.href = base + 'editor.css';
-      link.setAttribute('data-knight-editor-asset', 'css');
+      link.setAttribute('data-html-ppt-editor-asset', 'css');
       document.head.appendChild(link);
     }
 
-    if (!document.querySelector('script[data-knight-editor-asset="js"]')) {
+    if (!document.querySelector('script[data-html-ppt-editor-asset="js"]')) {
       const script = document.createElement('script');
       script.src = base + 'editor.js';
       script.defer = true;
-      script.setAttribute('data-knight-editor-asset', 'js');
-      script.addEventListener('error', () => { window.__knightDeckEditorLoading = false; });
+      script.setAttribute('data-html-ppt-editor-asset', 'js');
+      script.addEventListener('error', () => { window.__htmlPptDeckEditorLoading = false; });
       document.head.appendChild(script);
     }
   }
@@ -1307,9 +1307,9 @@
     const WHEEL_COOLDOWN = 360;
 
     function shouldBlockDeckNavigationForEditor(e) {
-      if (!(document.body && document.body.classList.contains('knight-editor-active'))) return false;
+      if (!(document.body && document.body.classList.contains('html-ppt-editor-active'))) return false;
       const target = e && e.target && e.target.closest
-        ? e.target.closest('input, textarea, select, [contenteditable="true"], .knight-editor-ui')
+        ? e.target.closest('input, textarea, select, [contenteditable="true"], .html-ppt-editor-ui')
         : null;
       return !!target;
     }

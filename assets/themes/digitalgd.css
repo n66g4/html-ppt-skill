@@ -1,0 +1,66 @@
+/* theme: digitalgd — 政务科技蓝 · gov-tech data platform */
+:root{
+  --bg:#ffffff;--bg-soft:#f4f7fc;--surface:#ffffff;--surface-2:#eef3fb;
+  --border:rgba(45,50,242,.12);--border-strong:rgba(45,50,242,.24);
+  --text-1:#262626;--text-2:#595959;--text-3:#808080;
+  --accent:#2D32F2;--accent-2:#3644FF;--accent-3:#1E1AE8;
+  --good:#00B050;--warn:#FD9011;--bad:#C00000;
+  --grad:linear-gradient(180deg,#0020C2 0%,#1a28e8 42%,#2D32F2 100%);
+  --grad-soft:linear-gradient(135deg,#eef2ff,#dce8ff 55%,#f4f7fc);
+  --radius:6px;--radius-sm:4px;--radius-lg:10px;
+  --shadow:0 2px 8px rgba(45,50,242,.08),0 8px 24px rgba(45,50,242,.05);
+  --shadow-lg:0 8px 24px rgba(45,50,242,.12),0 24px 48px rgba(0,32,194,.08);
+  --font-sans:'Microsoft YaHei','PingFang SC','Noto Sans SC',sans-serif;
+  --font-display:'Microsoft YaHei','PingFang SC','Noto Sans SC',sans-serif;
+}
+
+body{background:var(--bg)}
+
+/* Content slides — left brand rail */
+.slide:not(.slide-cover)::before{
+  content:"";position:absolute;left:0;top:0;bottom:0;width:6px;
+  background:linear-gradient(180deg,var(--accent-2),var(--accent));z-index:3;
+}
+
+.slide{padding:72px 96px 72px 88px}
+
+h1.title,h2.title,.h1,.h2{font-weight:700;color:var(--text-1);letter-spacing:-.02em}
+.kicker{color:var(--accent);font-weight:600;letter-spacing:.06em}
+.divider-accent{background:var(--grad);height:4px;width:64px;border-radius:2px}
+.card{border:1px solid var(--border);box-shadow:var(--shadow)}
+.card-accent{border-top:3px solid var(--accent);background:var(--surface)}
+.card-soft{background:var(--surface-2)}
+.pill-accent{background:rgba(45,50,242,.08);color:var(--accent);border:1px solid rgba(45,50,242,.18)}
+
+/* Cover slide — deep blue + optional brand background */
+.slide-cover{
+  color:#fff;
+  background:
+    linear-gradient(180deg,rgba(0,32,194,.55) 0%,rgba(45,50,242,.35) 100%),
+    url('../brands/digitalgd/cover-bg.png') center/cover no-repeat;
+}
+.slide-cover::before{display:none}
+.slide-cover .h1,.slide-cover .h2,.slide-cover .lede,.slide-cover .kicker{color:#fff}
+.slide-cover .kicker{opacity:.88}
+.slide-cover .dim,.slide-cover .dim2{color:rgba(255,255,255,.78)}
+.slide-cover .gradient-text{
+  background:linear-gradient(135deg,#ffffff,#b3cefb);
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+}
+.slide-cover .deck-footer{color:rgba(255,255,255,.65)}
+.slide-cover .brand-mark{
+  position:absolute;top:36px;left:88px;padding:8px 18px;border:1.5px solid rgba(255,255,255,.55);
+  border-radius:6px;font-size:15px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+  color:rgba(255,255,255,.92);opacity:.96;
+}
+
+/* Section nav accent (mirrors demo TOC sidebar) */
+.dgd-nav{
+  position:absolute;left:0;top:0;bottom:0;width:280px;padding:72px 28px 72px 32px;
+  background:var(--bg-soft);border-right:1px solid var(--border);box-sizing:border-box;
+}
+.dgd-nav .item{font-size:15px;line-height:2;color:var(--text-3);padding-left:12px;border-left:3px solid transparent}
+.dgd-nav .item.is-active{color:var(--accent);font-weight:700;border-left-color:var(--accent)}
+.dgd-nav .item.sub{padding-left:28px;font-size:14px;line-height:1.85}
+.slide.has-dgd-nav{padding-left:320px}
+.slide.has-dgd-nav::before{left:280px}

@@ -11,7 +11,7 @@ All themes share the same variables from `assets/base.css`: `--bg`,
 
 ## Theme Selection Rule
 
-For each real deck, choose **exactly 3 themes from all 36**:
+For each real deck, choose **exactly 3 themes from all 37**:
 
 1. **Default** — the best fit for the audience and delivery setting.
 2. **Softer alternate** — calmer, lighter, or more approachable.
@@ -37,6 +37,7 @@ Do not hardcode the same three themes for every deck. `soft-pastel` and
 | Research / academic / policy | `academic-paper`, `minimal-white`, `editorial-serif` |
 | Developer / technical talk | `tokyo-night`, `catppuccin-mocha`, `engineering-whiteprint` |
 | Architecture / systems / API | `blueprint`, `engineering-whiteprint`, `nord` |
+| 公共数据 / 平台运营 / 数据共享汇报 | `digitalgd`, `corporate-clean`, `arctic-cool` |
 | Product launch / future-facing | `aurora`, `glassmorphism`, `rainbow-gradient` |
 | Social / lifestyle / creator | `xiaohongshu-white`, `soft-pastel`, `sunset-warm` |
 | Brand story / editorial | `magazine-bold`, `editorial-serif`, `japanese-minimal` |
@@ -45,7 +46,7 @@ Do not hardcode the same three themes for every deck. `soft-pastel` and
 | Cyber / security / CLI | `cyberpunk-neon`, `terminal-green`, `tokyo-night` |
 | Retro / entertainment / nostalgia | `retro-tv`, `vaporwave`, `y2k-chrome` |
 
-## All 36 Themes
+## All 37 Themes
 
 | Theme | Character | Good For |
 |---|---|---|
@@ -85,6 +86,7 @@ Do not hardcode the same three themes for every deck. `soft-pastel` and
 | `pitch-deck-vc` | Startup pitch, generous whitespace | Fundraising, business cases, opportunity framing |
 | `magazine-bold` | Editorial serif, large display type | Essays, brand monthlies, narrative/product stories |
 | `engineering-whiteprint` | Whiteprint grid and mono details | APIs, architecture, design docs, technical planning |
+| `digitalgd` | Gov-tech blue, YaHei, left rail | 公共数据共享 / 平台运营汇报 / 多级数据治理 |
 
 ## How To Extend
 

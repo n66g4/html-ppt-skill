@@ -1,4 +1,4 @@
-# knight-html-ppt-skill :: render.ps1 - headless Chrome/Edge screenshot(s)
+# html-ppt-skill :: render.ps1 - headless Chrome/Edge screenshot(s)
 #
 # Usage:
 #   .\scripts\render.ps1 <html-file>                      # one PNG, slide 1

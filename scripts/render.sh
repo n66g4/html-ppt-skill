@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# knight-html-ppt-skill :: render.sh — headless Chrome screenshot(s)
+# html-ppt-skill :: render.sh — headless Chrome screenshot(s)
 #
 # Usage:
 #   render.sh <html-file>                     # one PNG, slide 1

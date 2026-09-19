@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# knight-html-ppt-skill :: new-deck.sh — scaffold a new deck from templates/deck.html
+# html-ppt-skill :: new-deck.sh — scaffold a new deck from templates/deck.html
 #
 # Usage:
 #   new-deck.sh <name> [output-parent-dir]
