@@ -143,7 +143,7 @@ Each slide should set `data-slide-id="cover"`. The presenter right panel shows *
 | Key | Action |
 |---|---|
 | P | Enter presenter mode |
-| G / O / E | Toggle slide grid (O/E 兼容旧习惯) |
+| G | Toggle slide grid (讲者宫格；普通放映仍用 O 总览 / E 侧栏) |
 | T | Cycle theme (syncs to audience window) |
 | ← → Space Enter Backspace | Navigate slides |
 | L | Laser pointer |

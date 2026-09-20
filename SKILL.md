@@ -109,7 +109,7 @@ screen**; click it again or press `Esc` to dismiss.
 
 Only `presenter-mode-reveal` is designed from the ground up around the feature with proper example 逐字稿 on every slide.
 
-Keyboard in presenter view: `← → Space Enter Backspace` navigate · `G / O / E` grid ·
+Keyboard in presenter view: `← → Space Enter Backspace` navigate · `G` grid ·
 `T` theme · `L / C / X` laser / circle / clear · `B / W` black / white audience screen ·
 `F` fullscreen · `Esc` dismiss zoom, then grid, then exit.
 

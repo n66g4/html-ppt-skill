@@ -297,6 +297,10 @@ window.__SPEAKER_NOTES__ = [
   await page.locator('[data-action="prev"]').click();
   await page.waitForTimeout(150);
   await page.keyboard.press('o');
+  await page.waitForTimeout(150);
+  const oOpensGrid = await page.locator('.hpp-overview').isVisible();
+  assert(!oOpensGrid, 'O should not open presenter grid (use G only)');
+  await page.keyboard.press('g');
   await page.waitForSelector('.hpp-overview:not([hidden])');
   await page.keyboard.press('Escape');
   await page.waitForTimeout(150);

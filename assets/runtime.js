@@ -1794,11 +1794,6 @@
           else if (htmlPptPresenter.syncPreviewTheme) htmlPptPresenter.syncPreviewTheme();
           return;
         }
-        if (e.key === 'o' || e.key === 'O' || e.key === 'e' || e.key === 'E') {
-          htmlPptPresenter.toggleOverview();
-          e.preventDefault();
-          return;
-        }
         return;
       }
       if (htmlPptPresenter && htmlPptPresenter.handleKey(e)) return;
