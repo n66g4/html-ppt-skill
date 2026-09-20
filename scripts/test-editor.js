@@ -322,6 +322,17 @@ async function main() {
     style.setAttribute('data-page-navigator-style', 'true');
     style.textContent = '.page-navigator{display:block}';
     document.head.appendChild(style);
+    const presenter = document.createElement('div');
+    presenter.id = 'html-ppt-presenter';
+    presenter.innerHTML = '<iframe src="?preview=1"></iframe>';
+    document.body.appendChild(presenter);
+    const hint = document.createElement('button');
+    hint.id = 'html-ppt-presenter-hint';
+    document.body.appendChild(hint);
+    const asset = document.createElement('link');
+    asset.setAttribute('data-html-ppt-presenter-asset', 'css');
+    asset.href = 'presenter.css';
+    document.head.appendChild(asset);
   });
   await page.evaluate(() => window.HtmlPptDeckEditor.save());
   const saved = await page.evaluate(() => window.__savedChunks.join(''));
@@ -330,6 +341,9 @@ async function main() {
   assert(!saved.includes('127.0.0.1'), 'saved HTML should not include local runtime asset URLs');
   assert(!saved.includes('data-page-navigator-style'), 'saved HTML should not include generated page navigator style');
   assert(!saved.includes('html-ppt-editor-toolbar'), 'saved HTML should not include editor toolbar UI');
+  assert(!saved.includes('id="html-ppt-presenter"'), 'saved HTML should not include the presenter overlay');
+  assert(!saved.includes('html-ppt-presenter-hint'), 'saved HTML should not include the presenter hint');
+  assert(!saved.includes('data-html-ppt-presenter-asset'), 'saved HTML should not include presenter assets');
   assert(!saved.includes('data-html-ppt-edit-selected'), 'saved HTML should not include transient selection markers');
   const firstSaveStats = await page.evaluate(() => ({ pickers: window.__savePickerCount, writes: window.__writeCount }));
   assert(firstSaveStats.pickers === 1, 'first save should ask for a file handle exactly once');
@@ -343,6 +357,23 @@ async function main() {
   const secondSaveStats = await page.evaluate(() => ({ pickers: window.__savePickerCount, writes: window.__writeCount }));
   assert(secondSaveStats.pickers === 1, 'Ctrl+S should reuse the existing file handle without opening another picker');
   assert(secondSaveStats.writes === 2, 'Ctrl+S should write the HTML through the existing file handle');
+
+  await page.click('#card strong');
+  const selectedInsideCard = await page.evaluate(() => {
+    const el = document.querySelector('[data-html-ppt-edit-selected]');
+    return el ? el.id : '';
+  });
+  assert(selectedInsideCard === 'card', 'clicking text inside a card should select the card, got ' + selectedInsideCard);
+
+  await page.click('#lede');
+  await page.fill('.html-ppt-editor-font-size', '36');
+  await page.locator('.html-ppt-editor-font-size').press('Enter');
+  const fontAfterEnter = await page.evaluate(() => ({
+    fontSize: document.querySelector('#lede').style.fontSize,
+    height: document.querySelector('#lede').style.height
+  }));
+  assert(fontAfterEnter.fontSize === '36px', 'Enter in the font-size field should apply, got ' + fontAfterEnter.fontSize);
+  assert(fontAfterEnter.height === 'auto', 'font-size change should release a frozen height, got ' + fontAfterEnter.height);
 
   await browser.close();
   fs.rmSync(tmp, { recursive: true, force: true });

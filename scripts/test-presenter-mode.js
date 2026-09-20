@@ -42,6 +42,7 @@ async function main() {
 <div class="deck">
   <section class="slide" data-title="封面" data-slide-id="cover">
     <h1 class="h1">第一页</h1>
+    <svg width="10" height="10"><defs><linearGradient id="g1"></linearGradient></defs><rect fill="url(#g1)" width="10" height="10"/></svg>
     <aside class="notes"><p>第一页备注</p></aside>
   </section>
   <section class="slide" data-title="第二页" data-slide-id="slide-02">
@@ -80,6 +81,10 @@ window.__SPEAKER_NOTES__ = [
     'overview cards should show slide titles, got ' + JSON.stringify(chromeLabels.overview));
   assert(chromeLabels.pageNav.length === 3 && chromeLabels.pageNav.every(t => t && t.trim()),
     'page navigator items should show slide titles, got ' + JSON.stringify(chromeLabels.pageNav));
+
+  const cloneIds = await page.evaluate(() => Array.from(document.querySelectorAll('linearGradient'), el => el.id));
+  assert(cloneIds.length === 3 && new Set(cloneIds).size === 3,
+    'overview and page-nav clones must not share svg ids, got ' + JSON.stringify(cloneIds));
 
   let previewRequestCount = 0;
   page.on('request', req => {
@@ -128,6 +133,14 @@ window.__SPEAKER_NOTES__ = [
   const audiencePage = await context.newPage();
   await audiencePage.goto(deckUrl + '?audience=1', { waitUntil: 'networkidle' });
 
+  await audiencePage.evaluate(() => {
+    window.__slideClassChanges = 0;
+    document.querySelectorAll('.deck > .slide').forEach(slide => {
+      new MutationObserver(() => { window.__slideClassChanges++; })
+        .observe(slide, { attributes: true, attributeFilter: ['class'] });
+    });
+  });
+
   await page.locator('[data-action="next"]').click();
   await page.waitForTimeout(400);
   assert(previewRequestCount <= 2, 'slide change should use postMessage not full reload, got ' + previewRequestCount + ' preview requests');
@@ -138,9 +151,24 @@ window.__SPEAKER_NOTES__ = [
     return slides.findIndex(s => s.classList.contains('is-active'));
   });
   assert(audienceSlide === 1, 'audience window should sync to slide 2, got ' + audienceSlide);
+  const classChanges = await audiencePage.evaluate(() => window.__slideClassChanges);
+  assert(classChanges <= 4, 'audience should apply one go per navigation, got ' + classChanges + ' class changes');
 
   const notes2 = await page.locator('[data-role="notes-title"]').innerText();
   assert(notes2.includes('第二页'), 'presenter notes should update on navigation');
+
+  await page.locator('[data-action="freeze"]').click();
+  await page.waitForTimeout(100);
+  await page.locator('[data-action="next"]').click();
+  await page.waitForTimeout(200);
+  const frozenSlide = await audiencePage.evaluate(() =>
+    Array.from(document.querySelectorAll('.deck > .slide')).findIndex(s => s.classList.contains('is-active')));
+  assert(frozenSlide === 1, 'frozen audience should stay on slide 2, got ' + frozenSlide);
+  await page.locator('[data-action="freeze"]').click();
+  await page.waitForTimeout(200);
+  const thawedSlide = await audiencePage.evaluate(() =>
+    Array.from(document.querySelectorAll('.deck > .slide')).findIndex(s => s.classList.contains('is-active')));
+  assert(thawedSlide === 2, 'unfreeze should catch the audience up, got ' + thawedSlide);
 
   await page.keyboard.press('g');
   await page.waitForSelector('.hpp-overview:not([hidden])');
@@ -218,13 +246,39 @@ window.__SPEAKER_NOTES__ = [
   });
   assert(audienceZoomVisible, 'clicking image in presenter preview should zoom on audience screen');
 
+  await audiencePage.bringToFront();
+  await audiencePage.keyboard.press('Escape');
+  await page.waitForTimeout(200);
+  const audienceEscCleared = await audiencePage.evaluate(() => {
+    const el = document.getElementById('html-ppt-audience-image-focus');
+    return !el || el.style.display === 'none';
+  });
+  assert(audienceEscCleared, 'Esc on audience window should clear image zoom');
+
+  await page.bringToFront();
+  await previewFrame.locator('.slide.is-active img').click({ force: true });
+  await page.waitForTimeout(250);
+  const rezoomed = await audiencePage.evaluate(() => {
+    const el = document.getElementById('html-ppt-audience-image-focus');
+    return !!(el && el.style.display === 'flex');
+  });
+  assert(rezoomed, 'after audience Esc, presenter can zoom the same image again');
+
   await page.keyboard.press('Escape');
   await page.waitForTimeout(150);
   const audienceZoomCleared = await audiencePage.evaluate(() => {
     const el = document.getElementById('html-ppt-audience-image-focus');
     return !el || el.style.display === 'none';
   });
-  assert(audienceZoomCleared, 'Esc should clear audience image zoom');
+  assert(audienceZoomCleared, 'Esc on presenter should clear audience image zoom');
+
+  await audiencePage.locator('.slide.is-active img').click({ force: true });
+  await page.waitForTimeout(150);
+  const noLocalLightbox = await audiencePage.evaluate(() => {
+    const el = document.getElementById('html-ppt-audience-image-focus');
+    return !el || el.style.display === 'none';
+  });
+  assert(noLocalLightbox, 'clicking an image on the audience window must not open a local zoom overlay');
 
   await page.keyboard.press('v');
   await page.waitForTimeout(200);

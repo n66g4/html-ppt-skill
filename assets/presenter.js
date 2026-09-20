@@ -270,10 +270,14 @@
         active && !overviewOpen && annotationTool === 'none');
     }
 
-    function clearImageFocus() {
+    function clearImageFocus(fromRemote) {
       if (!imageFocusSrc) return;
       imageFocusSrc = null;
-      postAudience({ type: 'image-focus-clear' });
+      if (!fromRemote) postAudience({ type: 'image-focus-clear' });
+    }
+
+    function clearImageFocusRemote() {
+      clearImageFocus(true);
     }
 
     function setImageFocus(src, alt) {
@@ -740,9 +744,10 @@
       if (idx < 0 || idx >= deps.total) return false;
       clearImageFocus();
       rollSlideTimer(idx);
+      /* deps.go already broadcasts one `go`. A second postAudience would
+       * deliver the same slide again (BroadcastChannel + postMessage). */
       deps.go(idx);
       syncFrames();
-      postAudience({ type: 'go', idx: idx, theme: deps.getTheme ? deps.getTheme() : null });
       return true;
     }
 
@@ -752,7 +757,6 @@
       rollSlideTimer(idx);
       deps.go(idx);
       syncFrames();
-      postAudience({ type: 'go', idx: idx, theme: deps.getTheme ? deps.getTheme() : null });
     }
 
     function buildDOM() {
@@ -1112,6 +1116,7 @@
       syncPreviewTheme: syncPreviewTheme,
       syncTheme: syncTheme,
       pushState: pushState,
+      clearImageFocusRemote: clearImageFocusRemote,
       openAudience: openAudience
     };
   }

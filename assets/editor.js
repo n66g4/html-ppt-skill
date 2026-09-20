@@ -254,6 +254,22 @@
 
     if (!state.active) return;
 
+    if (ui.modalBackdrop.classList.contains('is-open')) {
+      if (key === 'Escape') closeModal(false);
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+
+    if (event.target && event.target.classList && event.target.classList.contains('html-ppt-editor-font-size') && key === 'Enter') {
+      event.preventDefault();
+      onFontSizeChange();
+      event.stopPropagation();
+      return;
+    }
+
+    if (state.editingText && mod && (key.toLowerCase() === 'z' || key.toLowerCase() === 'y')) return;
+
     if (key === 'Escape' && isColorMenuOpen()) {
       closeColorMenu();
       event.preventDefault();
@@ -432,7 +448,7 @@
   function onDoubleClick(event) {
     if (!state.active) return;
     if (event.target.closest && event.target.closest('.html-ppt-editor-ui')) return;
-    const editable = findEditableElement(event.target);
+    const editable = findEditableElement(event.target, true);
     if (!editable || !isTextEditable(editable)) return;
     selectElement(editable);
     startTextEdit(editable);
@@ -440,18 +456,21 @@
     event.stopPropagation();
   }
 
-  function findEditableElement(target) {
+  function findEditableElement(target, preferText) {
     let node = target && target.nodeType === 1 ? target : target && target.parentElement;
     if (!node || !node.closest) return null;
     if (node.closest('.html-ppt-editor-ui')) return null;
     const slide = node.closest('.slide');
     if (!slide || !slide.classList.contains('is-active')) return null;
 
+    const hits = [];
     for (let el = node; el && el !== slide && el !== deck; el = el.parentElement) {
       if (isExcluded(el)) return null;
-      if (el.matches && el.matches(BLOCK_SELECTOR)) return el;
+      if (el.matches && el.matches(BLOCK_SELECTOR)) hits.push(el);
     }
-    return null;
+    if (!hits.length) return null;
+    if (preferText) return hits.find(el => el.matches(TEXT_SELECTOR)) || null;
+    return hits.find(el => !/^(SPAN|STRONG|EM|SMALL)$/.test(el.tagName)) || hits[0];
   }
 
   function isExcluded(el) {
@@ -459,8 +478,7 @@
   }
 
   function isTextEditable(el) {
-    const text = (el.textContent || '').trim();
-    return !!text && el.matches(TEXT_SELECTOR);
+    return !!(el && el.matches && el.matches(TEXT_SELECTOR));
   }
 
   function selectElement(el) {
@@ -1014,6 +1032,7 @@
     }
     finishTextEdit();
     el.style[property] = value;
+    if (property === 'fontSize' && el.style.height) el.style.height = 'auto';
     markDirty();
     recordState();
     syncToolbarFromSelection();
@@ -1163,8 +1182,6 @@
       state.historyIndex = 0;
       state.dirty = true;
       setStatus('已恢复草稿，记得保存', 'dirty');
-    } else {
-      clearDraft();
     }
   }
 
@@ -1214,7 +1231,7 @@
     if (!handle) return;
     if (await ensureWritePermission(handle, false)) {
       state.fileHandle = handle;
-      setStatus('已授权，Ctrl+S 覆盖', 'saved');
+      if (!state.dirty) setStatus('已授权，Ctrl+S 覆盖', 'saved');
     }
   }
 
@@ -1331,6 +1348,9 @@
       '.overview',
       '.page-navigator',
       '.page-nav-hotspot',
+      '#html-ppt-presenter',
+      '#html-ppt-presenter-hint',
+      '[data-html-ppt-presenter-asset]',
       'script[src*="/assets/animations/fx/"]',
       'script[src*="\\\\assets\\\\animations\\\\fx\\\\"]',
       'style[data-overview-style]',

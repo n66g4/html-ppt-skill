@@ -309,11 +309,13 @@
 
       function audienceGo(n) {
         n = Math.max(0, Math.min(total - 1, n));
+        if (audienceNavReady && n === audienceIdx && slides[n].classList.contains('is-active')) return;
         slides.forEach((s, i) => {
           s.classList.toggle('is-active', i === n);
           s.classList.toggle('is-prev', i < n);
         });
         audienceIdx = n;
+        audienceNavReady = true;
         slides[n].querySelectorAll('[data-anim]').forEach(el => {
           const a = el.getAttribute('data-anim');
           el.classList.remove('anim-' + a);
@@ -324,6 +326,8 @@
       }
 
       let audienceFrozen = false;
+      let audiencePendingIdx = null;
+      let audienceNavReady = false;
       let audienceScreenMode = 'normal';
       let audienceLaser = null;
       let audienceLaserHideAt = 0;
@@ -335,11 +339,14 @@
         if (audienceImageFocusEl) return audienceImageFocusEl;
         const el = document.createElement('div');
         el.id = 'html-ppt-audience-image-focus';
-        el.style.cssText = 'position:fixed;inset:0;z-index:10001;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.88);padding:24px;box-sizing:border-box;pointer-events:none';
+        /* pointer-events:auto so clicks hit the overlay (dismiss) instead of
+         * falling through to the slide — and so Esc/focus stay meaningful. */
+        el.style.cssText = 'position:fixed;inset:0;z-index:10001;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.88);padding:24px;box-sizing:border-box;cursor:zoom-out';
         const img = document.createElement('img');
-        img.style.cssText = 'max-width:100%;max-height:100%;object-fit:contain;display:block';
+        img.style.cssText = 'max-width:100%;max-height:100%;object-fit:contain;display:block;pointer-events:none';
         img.alt = '';
         el.appendChild(img);
+        el.addEventListener('click', () => dismissAudienceImageFocus());
         document.body.appendChild(el);
         audienceImageFocusEl = el;
         return el;
@@ -366,6 +373,38 @@
           img.alt = '';
         }
       }
+
+      function isAudienceImageFocused() {
+        return !!(audienceImageFocusEl && audienceImageFocusEl.style.display === 'flex');
+      }
+
+      /* Local dismiss (Esc / click) must also tell the presenter to drop its
+       * imageFocusSrc, or the next same-image click would only toggle-off and
+       * the projector would stay stuck if focus never returns to presenter. */
+      function dismissAudienceImageFocus() {
+        if (!isAudienceImageFocused()) return;
+        clearAudienceImageFocus();
+        if (audienceBc) {
+          try { audienceBc.postMessage({ type: 'image-focus-clear' }); } catch(e) { /* ignore */ }
+        }
+      }
+
+      /* Audience is a projection surface: never open a local image lightbox from
+       * a click here. Only the presenter may raise image-focus over the channel. */
+      document.addEventListener('click', function (e) {
+        const img = e.target && e.target.closest ? e.target.closest('img') : null;
+        if (!img || img.closest('#html-ppt-audience-image-focus')) return;
+        if (img.closest('.notes, aside.notes, .speaker-notes')) return;
+        e.preventDefault();
+        e.stopPropagation();
+      }, true);
+
+      document.addEventListener('keydown', function (e) {
+        if (e.key !== 'Escape') return;
+        if (!isAudienceImageFocused()) return;
+        e.preventDefault();
+        dismissAudienceImageFocus();
+      });
 
       function ensureAudienceCover() {
         let cover = document.getElementById('html-ppt-audience-cover');
@@ -440,13 +479,22 @@
         if (data.type === 'go' && typeof data.idx === 'number') {
           clearAudienceImageFocus();
           if (data.theme) audienceApplyTheme(data.theme);
-          if (!audienceFrozen) audienceGo(data.idx);
+          if (audienceFrozen) audiencePendingIdx = data.idx;
+          else {
+            audiencePendingIdx = null;
+            audienceGo(data.idx);
+          }
         } else if (data.type === 'theme' && data.name) {
           audienceApplyTheme(data.name);
         } else if (data.type === 'screen') {
           setAudienceScreen(data.mode);
         } else if (data.type === 'freeze') {
           audienceFrozen = !!data.value;
+          if (!audienceFrozen && audiencePendingIdx !== null) {
+            const pending = audiencePendingIdx;
+            audiencePendingIdx = null;
+            audienceGo(pending);
+          }
         } else if (data.type === 'laser') {
           audienceLaser = data.point || null;
           audienceLaserHideAt = Date.now() + 650;
@@ -563,7 +611,7 @@
       thumbStage.className = 'overview-thumb-stage';
       const thumbDeck = document.createElement('div');
       thumbDeck.className = 'overview-thumb-deck';
-      thumbDeck.appendChild(cloneSlideForNavigator(slide, i));
+      thumbDeck.appendChild(cloneSlideForNavigator(slide, i, 'ov'));
       thumbStage.appendChild(thumbDeck);
 
       const meta = document.createElement('div');
@@ -650,7 +698,7 @@
       thumbStage.className = 'page-nav-thumb-stage';
       const thumbDeck = document.createElement('div');
       thumbDeck.className = 'page-nav-thumb-deck';
-      thumbDeck.appendChild(cloneSlideForNavigator(slide, i));
+      thumbDeck.appendChild(cloneSlideForNavigator(slide, i, 'pn'));
       thumbStage.appendChild(thumbDeck);
 
       const meta = document.createElement('div');
@@ -707,7 +755,7 @@
       });
     }
 
-    function cloneSlideForNavigator(slide, i) {
+    function cloneSlideForNavigator(slide, i, kind) {
       const clone = slide.cloneNode(true);
       clone.classList.add('is-active');
       clone.classList.remove('is-prev');
@@ -720,7 +768,7 @@
       clone.querySelectorAll('svg text[data-number-original]').forEach(el => {
         el.textContent = el.getAttribute('data-number-original') || el.textContent;
       });
-      makeCloneIdsUnique(clone, '-nav-' + i);
+      makeCloneIdsUnique(clone, '-' + (kind || 'nav') + '-' + i);
       return clone;
     }
 
@@ -1471,8 +1519,10 @@
     });
 
     /* ===== navigation ===== */
+    let navReady = false;
     function go(n, fromRemote){
       n = Math.max(0, Math.min(total-1, n));
+      if (navReady && n === idx) return;
       slides.forEach((s,i) => {
         s.classList.toggle('is-active', i===n);
         s.classList.toggle('is-prev', i<n);
@@ -1502,8 +1552,8 @@
         el.classList.add('anim-'+a);
       });
 
-      // counter-up
       animateCounters(slides[n]);
+      navReady = true;
 
       // Broadcast to other window (audience ↔ presenter)
       if (!fromRemote && bc) {
@@ -1542,6 +1592,10 @@
         if (!e.data) return;
         if (e.data.type === 'audience-ready') {
           if (htmlPptPresenter && htmlPptPresenter.pushState) htmlPptPresenter.pushState();
+        } else if (e.data.type === 'image-focus-clear') {
+          if (htmlPptPresenter && htmlPptPresenter.clearImageFocusRemote) {
+            htmlPptPresenter.clearImageFocusRemote();
+          }
         } else if (e.data.type === 'go' && typeof e.data.idx === 'number') {
           go(e.data.idx, true);
         } else if (e.data.type === 'theme' && e.data.name) {
@@ -1614,10 +1668,7 @@
     }
 
     document.addEventListener('wheel', function(e) {
-      if (shouldBlockDeckNavigationForEditor(e)) {
-        e.preventDefault();
-        return;
-      }
+      if (shouldBlockDeckNavigationForEditor(e)) return;
       if (shouldIgnoreWheel(e)) return;
       if (Math.abs(e.deltaY) < Math.abs(e.deltaX)) return;
       const now = Date.now();
@@ -1766,13 +1817,19 @@
       }
     });
 
-    // hash deep-link
-    function fromHash(){
+    // hash deep-link. Apply once here; hashchange covers later edits.
+    // replaceState inside go() does not fire hashchange, so this cannot loop.
+    function hashIndex(){
       const m = /^#\/(\d+)/.exec(location.hash||'');
-      if (m) go(Math.max(0, parseInt(m[1],10)-1));
+      if (!m) return null;
+      return Math.max(0, Math.min(total-1, parseInt(m[1],10)-1));
     }
-    window.addEventListener('hashchange', fromHash);
-    fromHash();
+    window.addEventListener('hashchange', function(){
+      const n = hashIndex();
+      if (n !== null) go(n);
+    });
+    const initialHash = hashIndex();
+    if (initialHash !== null) idx = initialHash;
     go(idx);
     loadDeckEditorAssets();
   });
